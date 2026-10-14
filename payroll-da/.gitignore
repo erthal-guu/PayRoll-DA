@@ -1,0 +1,7 @@
+backend/target/
+frontend/node_modules/
+frontend/dist/
+frontend/dist-demo/
+*.log
+.idea/
+.vscode/

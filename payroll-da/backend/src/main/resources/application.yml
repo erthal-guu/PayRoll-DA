@@ -1,0 +1,67 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: payroll-da
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/payroll_da}
+    username: ${DB_USER:payroll}
+    password: ${DB_PASSWORD:payroll}
+  flyway:
+    enabled: true
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+# Configuração da importação.
+# Quando tivermos o arquivo oficial do TCE-PR, basta ajustar os nomes das colunas abaixo
+# (lado direito) para os nomes que aparecem no cabeçalho do CSV. A comparação ignora
+# maiúsculas, acentos, espaços e underlines.
+tce:
+  importacao:
+    # Endereço padrão usado por POST /api/importacoes/url quando nenhuma URL é enviada.
+    # Deixe vazio até confirmarmos o link de dados abertos do TCE-PR.
+    url-padrao: ${TCE_URL_PADRAO:}
+    # Domínios de onde o sistema aceita baixar arquivos.
+    dominios-permitidos:
+      - tce.pr.gov.br
+      - servicos.tce.pr.gov.br
+      - www1.tce.pr.gov.br
+    charset: ${TCE_CHARSET:ISO-8859-1}
+    delimitador: ";"
+    tamanho-lote: 1000
+    max-erros-registrados: 200
+    colunas:
+      municipio: municipio
+      cod-ibge: cod_ibge
+      entidade: entidade
+      poder: poder
+      ano: ano
+      mes: mes
+      despesa-bruta: despesa_bruta
+      pessoal-ativo: pessoal_ativo
+      inativos-pensionistas: inativos_pensionistas
+      outras-despesas: outras_despesas_pessoal
+      nao-computadas: despesas_nao_computadas
+      despesa-total: despesa_total_pessoal
+      rcl-ajustada: rcl_ajustada
+    # Endereço usado pelo botão "Consultar". Placeholders: {codIbge}, {ano}, {mes}.
+    # Vazio = a consulta usa os dados já importados no banco.
+    url-consulta: ${TCE_URL_CONSULTA:}
+  cors:
+    origens-permitidas: ${CORS_ORIGENS:http://localhost:5173}
+
+# Chatbot. A chave fica só no servidor (variável de ambiente), nunca no front.
+anthropic:
+  api-key: ${ANTHROPIC_API_KEY:}
+  modelo: ${ANTHROPIC_MODELO:claude-sonnet-5-5}
+  max-tokens: 1500
+  url: https://api.anthropic.com/v1/messages
