@@ -85,8 +85,8 @@ export default function Importacao({ aoImportar }) {
         </div>
       </div>
       <div className="panel">
-        <div className="panel-head"><h2>Histórico</h2>{api.modo === 'mock' && <span className="tag">Modo demonstração</span>}</div>
-        {!lista.length ? <div className="vazio">Nenhuma importação ainda. O dashboard está mostrando os dados de exemplo.</div> : (
+        <div className="panel-head"><h2>Histórico</h2></div>
+        {!lista.length ? <div className="vazio">Nenhuma importação ainda.</div> : (
           <div className="tabela-wrap">
             <table>
               <thead><tr><th>#</th><th>Origem</th><th>Arquivo</th><th>Status</th><th className="n">Importadas</th><th className="n">Com erro</th><th>Resultado</th></tr></thead>

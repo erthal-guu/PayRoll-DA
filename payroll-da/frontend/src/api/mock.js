@@ -185,7 +185,7 @@ export const api = {
   async consultar({ codIbge, entidadeId, ano, mes }) {
     await espera(500)
     const doMunicipio = registros.filter((r) => r.entidade.codIbge === codIbge && r.ano === ano && r.mes === mes)
-    const imp = novaImportacao('URL', `TCE-PR · SIM-AM · ${doMunicipio[0]?.entidade.municipio ?? codIbge} · ${String(mes).padStart(2, '0')}/${ano} (simulado)`)
+    const imp = novaImportacao('URL', `TCE-PR · SIM-AM · ${doMunicipio[0]?.entidade.municipio ?? codIbge} · ${String(mes).padStart(2, '0')}/${ano}`)
     gravar(doMunicipio.map(({ entidade, percentual, limiteMaximo, importacaoId, ...linha }) => linha), imp.id)
     Object.assign(imp, {
       linhasLidas: doMunicipio.length, linhasImportadas: doMunicipio.length,
