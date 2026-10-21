@@ -1,40 +1,43 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../api/index.js'
 import { salvarArquivo } from '../arquivos.js'
 import { FAIXAS, MESES, moedaCheia, pct } from '../formato.js'
 
-const MESES_LONGOS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
-const ETAPAS = ['Buscando o CSV no TCE-PR', 'Importando no banco de dados', 'Gerando a planilha Excel']
+const ETAPAS = ['Abrindo o formulário do SIMAM (TCE-PR)', 'Aplicando os filtros e gerando o relatório', 'Importando para a base de dados']
+const CLASSE = { tipo: '', municipio: 'largo', entidade: 'inteiro', relatorio: 'inteiro' }
 
-export default function Consultar({ periodos, municipios, aoConsultar, verNoDashboard, perguntar }) {
-  const [codIbge, setCodIbge] = useState('')
-  const [entidades, setEntidades] = useState([])
-  const [entidadeId, setEntidadeId] = useState('')
-  const anos = useMemo(() => [...new Set(periodos.map((p) => p.ano))], [periodos])
-  const [ano, setAno] = useState(null)
-  const [mes, setMes] = useState(null)
-  const [baixarAuto, setBaixarAuto] = useState(true)
+export default function Consultar({ aoConsultar, verNoDashboard, perguntar }) {
+  const [selecao, setSelecao] = useState({})
+  const [filtros, setFiltros] = useState([])
+  const [carregandoFiltros, setCarregandoFiltros] = useState(true)
+  const [baixarAuto, setBaixarAuto] = useState(false)
   const [etapa, setEtapa] = useState(-1)
   const [resultado, setResultado] = useState(null)
   const [erro, setErro] = useState(null)
   const [aviso, setAviso] = useState(null)
 
+  // cada escolha pode liberar o próximo filtro no SIMAM, então a lista é relida a cada mudança
   useEffect(() => {
-    if (!ano && periodos[0]) { setAno(periodos[0].ano); setMes(periodos[0].mes) }
-  }, [periodos])
+    let atual = true
+    setCarregandoFiltros(true)
+    api.simamFiltros(selecao)
+      .then((l) => { if (atual) { setFiltros(l); setErro(null) } })
+      .catch((e) => { if (atual) setErro(e.message) })
+      .finally(() => { if (atual) setCarregandoFiltros(false) })
+    return () => { atual = false }
+  }, [selecao])
 
-  // começa por Curitiba quando existir, senão pelo primeiro município com dados
-  useEffect(() => {
-    if (!municipios.length || municipios.some((m) => m.codIbge === codIbge)) return
-    setCodIbge((municipios.find((m) => m.codIbge === '4106902') ?? municipios[0]).codIbge)
-  }, [municipios])
+  function escolher(chave, valor) {
+    const ordem = filtros.map((f) => f.chave)
+    const novo = {}
+    ordem.slice(0, ordem.indexOf(chave)).forEach((k) => { if (selecao[k]) novo[k] = selecao[k] })
+    if (valor) novo[chave] = valor
+    setSelecao(novo)
+    setResultado(null)
+  }
 
-  useEffect(() => {
-    if (!codIbge) return
-    api.entidadesDoMunicipio(codIbge).then((l) => { setEntidades(l); setEntidadeId(l[0]?.id ?? '') }).catch((e) => setErro(e.message))
-  }, [codIbge])
-
-  const mesesDoAno = periodos.filter((p) => p.ano === ano).map((p) => p.mes).sort((a, b) => a - b)
+  const completo = filtros.length > 0 && filtros.every((f) => f.valor)
+  const rotulo = (chave) => filtros.find((f) => f.chave === chave)?.opcoes.find((o) => o.valor === selecao[chave])?.rotulo
 
   async function baixarExcel(r = resultado) {
     setAviso(null)
@@ -52,11 +55,10 @@ export default function Consultar({ periodos, municipios, aoConsultar, verNoDash
     setErro(null); setAviso(null); setResultado(null)
     try {
       setEtapa(0)
-      const pedido = { codIbge, entidadeId: Number(entidadeId), ano, mes }
-      const consulta = api.consultar(pedido)
-      setTimeout(() => setEtapa((e) => (e === 0 ? 1 : e)), 350)
+      const consulta = api.consultarSimam(selecao)
+      setTimeout(() => setEtapa((e) => (e === 0 ? 1 : e)), 400)
+      setTimeout(() => setEtapa((e) => (e === 1 ? 2 : e)), 1500)
       const r = await consulta
-      setEtapa(2)
       setResultado(r)
       aoConsultar()
       if (r.demonstrativo && baixarAuto) await baixarExcel(r)
@@ -86,48 +88,29 @@ export default function Consultar({ periodos, municipios, aoConsultar, verNoDash
   return (
     <>
       <div>
-        <h1>Consultar relatório da LRF</h1>
-        <div className="sub">Busca o demonstrativo no TCE-PR, importa no banco e gera a planilha Excel</div>
+        <h1>Consulta automática</h1>
+        <div className="sub">Escolha os filtros do SIMAM: o sistema busca o relatório no TCE-PR e grava na base, sem você baixar nada.</div>
       </div>
       {erro && <div className="erro">{erro}</div>}
 
-      <form className="panel form-consulta" onSubmit={consultar}>
-        <label className="campo" htmlFor="c-tipo">Tipo
-          <select id="c-tipo" defaultValue="municipio"><option value="municipio">Município</option></select>
-        </label>
-        <label className="campo largo" htmlFor="c-municipio">Município
-          <select id="c-municipio" value={codIbge} onChange={(e) => setCodIbge(e.target.value)}>
-            {municipios.map((m) => <option key={m.codIbge} value={m.codIbge}>{m.municipio.toUpperCase()}</option>)}
-          </select>
-        </label>
-        <label className="campo inteiro" htmlFor="c-entidade">Entidade
-          <select id="c-entidade" value={entidadeId} onChange={(e) => setEntidadeId(e.target.value)}>
-            {entidades.map((e) => <option key={e.id} value={e.id}>{e.nome.toUpperCase()}</option>)}
-          </select>
-        </label>
-        <label className="campo inteiro" htmlFor="c-relatorio">Relatório
-          <select id="c-relatorio" defaultValue="rgf-pessoal"><option value="rgf-pessoal">RGF - Demonstrativo da Despesa com Pessoal</option></select>
-        </label>
-        <label className="campo" htmlFor="c-ano">Ano
-          <select id="c-ano" value={ano ?? ''} onChange={(e) => {
-            const a = Number(e.target.value); setAno(a)
-            const ms = periodos.filter((p) => p.ano === a).map((p) => p.mes)
-            if (!ms.includes(mes)) setMes(Math.max(...ms))
-          }}>
-            {anos.map((a) => <option key={a} value={a}>{a}</option>)}
-          </select>
-        </label>
-        <label className="campo" htmlFor="c-periodo">Período
-          <select id="c-periodo" value={mes ?? ''} onChange={(e) => setMes(Number(e.target.value))}>
-            {mesesDoAno.map((m) => <option key={m} value={m}>{MESES_LONGOS[m - 1]}</option>)}
-          </select>
-        </label>
+      <form className={`panel form-consulta ${carregandoFiltros ? 'carregando' : ''}`} onSubmit={consultar}>
+        {filtros.map((f, i) => (
+          <label key={f.chave} className={`campo ${CLASSE[f.chave] ?? ''}`} htmlFor={`c-${f.chave}`}>
+            <span><b className="passo">{i + 1}</b>{f.rotulo}</span>
+            <select id={`c-${f.chave}`} value={f.valor} disabled={!f.habilitado || etapa >= 0}
+              onChange={(e) => escolher(f.chave, e.target.value)}>
+              <option value="">Selecione{f.chave === 'ano' ? ' um ano' : f.chave === 'periodo' ? ' um período' : ''}…</option>
+              {f.opcoes.map((o) => <option key={o.valor} value={o.valor}>{o.rotulo}</option>)}
+            </select>
+          </label>
+        ))}
         <div className="inteiro acoes-consulta">
-          <button className="btn" type="submit" disabled={etapa >= 0 || !entidadeId}>{etapa >= 0 ? 'Consultando…' : 'Consultar'}</button>
+          <button className="btn" type="submit" disabled={etapa >= 0 || !completo}>{etapa >= 0 ? 'Consultando…' : 'Consultar e importar'}</button>
           <label className="check" htmlFor="c-auto">
             <input id="c-auto" type="checkbox" checked={baixarAuto} onChange={(e) => setBaixarAuto(e.target.checked)} />
-            Baixar o Excel ao terminar
+            Gerar também a planilha Excel
           </label>
+          {!completo && !carregandoFiltros && <span className="hint">Preencha todos os filtros na ordem numerada.</span>}
         </div>
         {etapa >= 0 && (
           <ol className="etapas inteiro">

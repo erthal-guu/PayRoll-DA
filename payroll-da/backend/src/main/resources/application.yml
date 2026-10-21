@@ -56,6 +56,10 @@ tce:
     # Endereço usado pelo botão "Consultar". Placeholders: {codIbge}, {ano}, {mes}.
     # Vazio = a consulta usa os dados já importados no banco.
     url-consulta: ${TCE_URL_CONSULTA:}
+  simam:
+    url: ${TCE_SIMAM_URL:https://simam.tce.pr.gov.br/Paginas/Rel_LRF.aspx?relTipo=1}
+    espera-ms: 1500
+    diagnostico: ${SIMAM_DIAGNOSTICO:/tmp/simam-diagnostico}
   cors:
     origens-permitidas: ${CORS_ORIGENS:http://localhost:5173}
 

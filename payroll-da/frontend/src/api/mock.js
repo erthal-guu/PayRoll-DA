@@ -200,6 +200,30 @@ export const api = {
     }
   },
 
+  /** Simula os filtros em cascata do formulário do SIMAM (cada escolha libera o próximo). */
+  async simamFiltros(sel = {}) {
+    await espera(150)
+    const mun = await api.municipios()
+    const ents = sel.municipio ? await api.entidadesDoMunicipio(sel.municipio) : []
+    const per = listarPeriodos()
+    const anos = [...new Set(per.map((p) => p.ano))]
+    const meses = per.filter((p) => p.ano === +sel.ano).map((p) => p.mes).sort((a, b) => a - b)
+    const nomesMes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+    const f = (chave, rotulo, habilitado, opcoes) => ({ chave, id: `ddl${chave}`, rotulo, habilitado, valor: sel[chave] ?? '', opcoes })
+    return [
+      f('tipo', 'Tipo', true, [{ valor: '1', rotulo: 'Município' }, { valor: '2', rotulo: 'Consórcio Intermunicipal' }]),
+      f('municipio', 'Município', sel.tipo === '1', mun.map((m) => ({ valor: m.codIbge, rotulo: m.municipio.toUpperCase() }))),
+      f('entidade', 'Entidade', Boolean(sel.municipio), ents.map((e) => ({ valor: String(e.id), rotulo: e.nome.toUpperCase() }))),
+      f('relatorio', 'Relatório', Boolean(sel.entidade), [{ valor: '4', rotulo: 'RGF - Demonstrativo da Despesa com Pessoal' }]),
+      f('ano', 'Ano', Boolean(sel.relatorio), anos.map((a) => ({ valor: String(a), rotulo: String(a) }))),
+      f('periodo', 'Período', Boolean(sel.ano), meses.map((m) => ({ valor: String(m), rotulo: nomesMes[m - 1] }))),
+    ]
+  },
+
+  async consultarSimam(sel) {
+    return api.consultar({ codIbge: sel.municipio, entidadeId: Number(sel.entidade), ano: Number(sel.ano), mes: Number(sel.periodo) })
+  },
+
   async excel({ entidadeId, ano, mes }) {
     const d = demonstrativoDe(entidadeId, ano, mes)
     if (!d) throw new Error('Sem dados para esse período.')

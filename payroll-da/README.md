@@ -61,29 +61,33 @@ curl -F "arquivo=@dados/exemplo_despesa_pessoal.csv" http://localhost:8080/api/i
 curl http://localhost:8080/api/importacoes            # acompanha o status
 ```
 
-## 3. Integração com o TCE-PR
+## 3. Integração com o TCE-PR (SIMAM)
 
-A página `simam.tce.pr.gov.br/Paginas/Rel_LRF.aspx` gera um relatório por vez e proíbe acesso
-automatizado, então a integração **não** acessa esse formulário. Ela tem duas entradas:
+Há duas formas de trazer o Demonstrativo da Despesa com Pessoal (RGF - Anexo 1) para a base:
 
-| Entrada | Endpoint | Uso |
+| Forma | Tela | Como funciona |
 |---|---|---|
-| Upload de CSV | `POST /api/importacoes/upload` (multipart, campo `arquivo`) | CSV exportado pelo usuário |
-| Download por URL | `POST /api/importacoes/url` com `{"url": "https://..."}` | arquivo de dados abertos do TCE-PR (.csv ou .zip) |
+| **Manual** | Importar CSV | Você abre o SIMAM, escolhe os filtros, clica em Consultar e usa **Exportar → CSV** no relatório. Depois envia o arquivo na tela. `POST /api/importacoes/upload` |
+| **Automática** | Consulta automática | Você escolhe os filtros no sistema e ele faz o caminho do SIMAM sozinho (`POST /api/simam/filtros` e `POST /api/simam/consultar`) |
 
-O download só aceita `https` e os domínios em `tce.importacao.dominios-permitidos`. Quando o link oficial
-de dados abertos for confirmado, coloque-o em `TCE_URL_PADRAO` e o corpo da requisição pode ir vazio.
+Filtros do formulário `Rel_LRF.aspx?relTipo=1`, em cascata (cada escolha libera o próximo): **Tipo** (Município ou Consórcio
+Intermunicipal) → **Município** → **Entidade** → **Relatório** → **Ano** → **Período**. As opções de cada filtro vêm do próprio SIMAM.
 
-**Ajustar ao CSV oficial:** os nomes das colunas ficam em `backend/src/main/resources/application.yml`,
-em `tce.importacao.colunas` (campo lógico → nome no cabeçalho). A comparação ignora maiúsculas, acentos,
-espaços e underlines. Também dá para trocar `charset` e `delimitador`.
+Automação (`backend/.../simam`): abre o formulário ASP.NET, aplica cada filtro com o postback correspondente, clica em
+**Consultar**, abre a tela de visualização (ReportViewer) e baixa o CSV pelo link de exportação; se o CSV não vier, lê o HTML
+do relatório. O relatório é lido pelos rótulos das linhas (despesa bruta, pessoal ativo, inativos, terceirização,
+não computadas, RCL ajustada, limite) e grava-se um registro por entidade e período (o último mês da janela de 12 meses). Reimportar atualiza.
 
-Como a importação funciona:
+> **Atenção:** o SIMAM gera um relatório por vez e a versão anterior deste projeto registrou que a página proíbe acesso
+> automatizado. Confirme com o TCE-PR/termos de uso antes de usar em produção. O cliente faz um pedido por vez, com pausa
+> entre eles, e se identifica no `User-Agent`.
+>
+> **Não validado contra o site real** (o ambiente de desenvolvimento não alcança o SIMAM): o leitor do relatório foi testado
+> com uma página de visualização real e o cliente, com um servidor que simula o formulário ASP.NET. Se uma consulta falhar,
+> as amostras do que o SIMAM devolveu ficam em `tce.simam.diagnostico` (padrão `/tmp/simam-diagnostico`, dentro do container).
 
-1. O arquivo é salvo em disco temporário e a importação é registrada com status `PROCESSANDO` (resposta 202).
-2. Um executor dedicado lê o CSV em streaming (Commons CSV), converte números no padrão `1.234,56` e valida cada linha.
-3. Linhas válidas são gravadas em lotes de 1.000 com `INSERT ... ON CONFLICT`: reimportar um período atualiza, não duplica.
-4. Linhas inválidas vão para `importacao_erro` (até 200 por importação) e o status final fica `CONCLUIDA`, `COM_ERROS` ou `FALHOU`.
+Configuração: `tce.simam.url` (`TCE_SIMAM_URL`), `tce.simam.espera-ms`. O upload também aceita o CSV consolidado
+(colunas em `tce.importacao.colunas`) e há importação por URL de dados abertos (`POST /api/importacoes/url`).
 
 ## Botão Consultar (importa + Excel)
 

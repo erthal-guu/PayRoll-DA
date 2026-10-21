@@ -20,7 +20,7 @@ const ICONES = {
   importacao: 'M12 3 6.5 8.5l1.4 1.4L11 6.8V16h2V6.8l3.1 3.1 1.4-1.4L12 3ZM5 18v3h14v-3h-2v1H7v-1H5Z',
 }
 
-const TELAS = { consultar: 'Consultar', dashboard: 'Dashboard', importacao: 'Importação' }
+const TELAS = { consultar: 'Consulta automática', dashboard: 'Dashboard', importacao: 'Importar CSV' }
 
 function telaInicial() {
   const h = window.location.hash.slice(1)
@@ -110,8 +110,7 @@ export default function App() {
 
       <main>
         {tela === 'consultar' ? (
-          <Consultar periodos={periodos.dados || []} municipios={municipios.dados || []}
-            aoConsultar={() => setVersao((v) => v + 1)} verNoDashboard={verNoDashboard}
+          <Consultar aoConsultar={() => setVersao((v) => v + 1)} verNoDashboard={verNoDashboard}
             perguntar={(texto) => setPedidoChat({ texto, em: Date.now() })} />
         ) : tela === 'importacao' ? (
           <Importacao aoImportar={() => setVersao((v) => v + 1)} />

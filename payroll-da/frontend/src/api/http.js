@@ -50,6 +50,12 @@ export const api = {
   consultar: (pedido) => req('/api/consultas', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pedido),
   }),
+  simamFiltros: (selecao) => req('/api/simam/filtros', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ selecao }),
+  }),
+  consultarSimam: (selecao) => req('/api/simam/consultar', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ selecao }),
+  }),
   async excel({ entidadeId, ano, mes }) {
     const resp = await fetch(`${BASE}/api/consultas/excel${query({ entidadeId, ano, mes })}`)
     if (!resp.ok) throw new Error('Não foi possível gerar o Excel.')

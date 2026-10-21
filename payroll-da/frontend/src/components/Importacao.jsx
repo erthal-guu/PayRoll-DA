@@ -52,8 +52,8 @@ export default function Importacao({ aoImportar }) {
   return (
     <>
       <div>
-        <h1>Importação de dados</h1>
-        <div className="sub">Demonstrativo da Despesa com Pessoal (RGF) dos municípios do Paraná · fonte TCE-PR</div>
+        <h1>Importar CSV</h1>
+        <div className="sub">Importação manual: você baixa o CSV no SIMAM e envia para a base. Para o sistema buscar sozinho, use a <b>Consulta automática</b>.</div>
       </div>
       {erro && <div className="erro">{erro}</div>}
       <div className="grade">
@@ -67,11 +67,12 @@ export default function Importacao({ aoImportar }) {
             <button className="btn" onClick={() => entrada.current.click()}>Escolher arquivo</button>
             <input ref={entrada} id="arquivo-csv" type="file" accept=".csv,text/csv" hidden onChange={(e) => { enviar(e.target.files[0]); e.target.value = '' }} />
           </div>
-          <p className="hint" style={{ marginBottom: 0 }}>
-            Separador <code>;</code>, números no formato <code>1.234,56</code>. Colunas obrigatórias: <code>municipio</code>, <code>cod_ibge</code>,
-            <code>entidade</code>, <code>poder</code>, <code>ano</code>, <code>mes</code>, <code>despesa_total_pessoal</code>, <code>rcl_ajustada</code>.
-            Reimportar o mesmo período atualiza os valores, sem duplicar.
-          </p>
+          <ol className="passos-ajuda">
+            <li>No SIMAM, abra <i>Relatórios da LRF</i>, escolha os filtros e clique em <b>Consultar</b>.</li>
+            <li>Na tela do relatório, use <b>Exportar → CSV (comma delimited)</b>.</li>
+            <li>Envie o arquivo aqui. Também aceitamos o CSV consolidado (<code>municipio</code>, <code>cod_ibge</code>, <code>entidade</code>, <code>poder</code>, <code>ano</code>, <code>mes</code>, <code>despesa_total_pessoal</code>, <code>rcl_ajustada</code>, separador <code>;</code>).</li>
+          </ol>
+          <p className="hint" style={{ marginBottom: 0 }}>Reimportar o mesmo período atualiza os valores, sem duplicar.</p>
         </div>
         <div className="panel">
           <div className="panel-head"><h2>Baixar dos dados abertos do TCE-PR</h2></div>
@@ -94,7 +95,7 @@ export default function Importacao({ aoImportar }) {
                   <Fragment key={i.id}>
                     <tr onClick={() => i.linhasComErro > 0 && verErros(i)} style={{ cursor: i.linhasComErro ? 'pointer' : 'default' }}>
                       <td>{i.id}</td>
-                      <td>{i.origem === 'UPLOAD' ? 'Upload' : 'URL'}</td>
+                      <td>{{ UPLOAD: 'Manual', SIMAM: 'Automática' }[i.origem] ?? 'URL'}</td>
                       <td style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis' }} title={i.referencia}>{i.referencia}</td>
                       <td><span className="pill" style={{ color: STATUS[i.status][1], border: `1px solid ${STATUS[i.status][1]}` }}>{STATUS[i.status][0]}</span></td>
                       <td className="n">{i.linhasImportadas.toLocaleString('pt-BR')}</td>
