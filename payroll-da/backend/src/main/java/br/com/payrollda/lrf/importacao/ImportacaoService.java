@@ -49,7 +49,13 @@ public class ImportacaoService {
         Path temp = Files.createTempFile("upload-", ".csv");
         arquivo.transferTo(temp);
         long id = repo.criar("UPLOAD", nomeSeguro(arquivo.getOriginalFilename()));
-        executor.execute(() -> processarArquivo(id, temp));
+        executor.execute(() -> {
+            if (ehCsvDoSimam(temp)) {
+                processarCsvDoSimam(id, temp);
+            } else {
+                processarArquivo(id, temp);
+            }
+        });
         return repo.buscar(id).orElseThrow();
     }
 
@@ -93,6 +99,44 @@ public class ImportacaoService {
             repo.finalizar(id, "FALHOU", 0, 0, 0, "Não foi possível baixar o arquivo do TCE-PR: " + e.getMessage());
         }
         return repo.buscar(id).orElseThrow();
+    }
+
+    /** Grava linhas já lidas (consulta automática no SIMAM) numa importação criada por quem chama. */
+    public ImportacaoDto importarLinhas(long id, List<LinhaDespesa> linhas) {
+        try {
+            repo.limparCache();
+            repo.gravarLote(id, linhas);
+            repo.finalizar(id, "CONCLUIDA", linhas.size(), linhas.size(), 0, linhas.size() + " registro(s) importado(s) do SIMAM.");
+        } catch (Exception e) {
+            log.error("Falha ao gravar a importação {}", id, e);
+            repo.finalizar(id, "FALHOU", linhas.size(), 0, 0, "Erro ao gravar: " + e.getMessage());
+        }
+        return repo.buscar(id).orElseThrow();
+    }
+
+    /** O CSV exportado do relatório do SIMAM (ReportViewer) tem layout próprio, diferente do CSV consolidado. */
+    private static boolean ehCsvDoSimam(Path csv) {
+        try (java.io.InputStream in = Files.newInputStream(csv)) {
+            String inicio = new String(in.readNBytes(16384), java.nio.charset.StandardCharsets.UTF_8);
+            return br.com.payrollda.lrf.simam.RelatorioRgfParser.pareceRelatorioRgf(inicio);
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private void processarCsvDoSimam(long id, Path csv) {
+        try {
+            String texto = Files.readString(csv, java.nio.charset.StandardCharsets.UTF_8);
+            importarLinhas(id, List.of(br.com.payrollda.lrf.simam.RelatorioRgfParser.deCsv(texto, null)));
+        } catch (Exception e) {
+            repo.finalizar(id, "FALHOU", 0, 0, 0, "Não consegui ler o CSV do SIMAM: " + e.getMessage());
+        } finally {
+            try {
+                Files.deleteIfExists(csv);
+            } catch (IOException ignored) {
+                // arquivo temporário
+            }
+        }
     }
 
     void processarArquivo(long id, Path csv) {

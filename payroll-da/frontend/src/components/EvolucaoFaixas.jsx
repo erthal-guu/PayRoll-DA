@@ -14,7 +14,7 @@ export default function EvolucaoFaixas({ dados, periodoAtual, setPeriodo }) {
             <CartesianGrid vertical={false} />
             <XAxis dataKey="rotulo" tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={14} />
             <YAxis tickLine={false} axisLine={false} allowDecimals={false} />
-            <Tooltip cursor={{ fill: 'rgba(0,196,255,.08)' }} content={({ payload }) => payload?.length ? (
+            <Tooltip cursor={{ fill: 'rgba(20,99,230,.08)' }} content={({ payload }) => payload?.length ? (
               <div className="tooltip">
                 <strong>{periodoTxt(payload[0].payload)}</strong>
                 {Object.entries(FAIXAS).reverse().map(([k, f]) => (
@@ -24,7 +24,7 @@ export default function EvolucaoFaixas({ dados, periodoAtual, setPeriodo }) {
             {Object.entries(FAIXAS).map(([k, f]) => (
               <Bar key={k} dataKey={k} stackId="f" fill={f.cor} cursor="pointer" isAnimationActive={false}
                 shape={(props) => <rect x={props.x} y={props.y} width={props.width} height={Math.max(props.height, 0)}
-                  fill={f.cor} opacity={ehAtual(props.payload) ? 1 : 0.45} />} />
+                  fill={f.cor} opacity={ehAtual(props.payload) ? 1 : 0.7} />} />
             ))}
           </BarChart>
         </ResponsiveContainer>
