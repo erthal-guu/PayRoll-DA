@@ -100,7 +100,7 @@ export default function Consultar({ periodos, municipios, aoConsultar, verNoDash
             {municipios.map((m) => <option key={m.codIbge} value={m.codIbge}>{m.municipio.toUpperCase()}</option>)}
           </select>
         </label>
-        <label className="campo largo" htmlFor="c-entidade">Entidade
+        <label className="campo inteiro" htmlFor="c-entidade">Entidade
           <select id="c-entidade" value={entidadeId} onChange={(e) => setEntidadeId(e.target.value)}>
             {entidades.map((e) => <option key={e.id} value={e.id}>{e.nome.toUpperCase()}</option>)}
           </select>
@@ -150,6 +150,16 @@ export default function Consultar({ periodos, municipios, aoConsultar, verNoDash
           )}
           {!d ? <div className="vazio">{resultado.mensagem}</div> : (
             <>
+              <div className="destaques">
+                <div className="destaque"><span>Despesa sobre a RCL</span><strong>{pct(d.percentual)}</strong><small>limite máximo {pct(d.limiteMaximo)}</small></div>
+                <div className="destaque"><span>Uso do limite</span><strong style={{ color: FAIXAS[d.faixa].cor }}>{pct((d.percentual / d.limiteMaximo) * 100, 1)}</strong><small>{FAIXAS[d.faixa].descricao}</small></div>
+                <div className="destaque"><span>Margem até o limite</span><strong>{moedaCheia((d.rclAjustada * d.limiteMaximo) / 100 - d.despesaTotal)}</strong><small>sobre a RCL ajustada</small></div>
+              </div>
+              <div className="medidor" aria-hidden="true">
+                <span style={{ width: `${Math.min(100, (d.percentual / d.limiteMaximo) * 100)}%`, background: FAIXAS[d.faixa].cor }} />
+                <i style={{ left: '90%' }} /><i style={{ left: '95%' }} />
+              </div>
+              <div className="medidor-leg"><span>0%</span><span>alerta 90%</span><span>prudencial 95%</span><span>limite 100%</span></div>
               <div className="tabela-wrap">
                 <table className="demonstrativo">
                   <tbody>

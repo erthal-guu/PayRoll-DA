@@ -24,7 +24,7 @@ export default function EvolucaoFaixas({ dados, periodoAtual, setPeriodo }) {
             {Object.entries(FAIXAS).map(([k, f]) => (
               <Bar key={k} dataKey={k} stackId="f" fill={f.cor} cursor="pointer" isAnimationActive={false}
                 shape={(props) => <rect x={props.x} y={props.y} width={props.width} height={Math.max(props.height, 0)}
-                  fill={f.cor} opacity={ehAtual(props.payload) ? 1 : 0.45} />} />
+                  fill={f.cor} opacity={ehAtual(props.payload) ? 1 : 0.7} />} />
             ))}
           </BarChart>
         </ResponsiveContainer>

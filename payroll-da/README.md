@@ -12,6 +12,21 @@ payroll-da/
 └── docker-compose.yml
 ```
 
+## 0. Rodar tudo só com Docker (sem instalar nada)
+
+Precisa apenas do Docker (Docker Desktop no Windows). Maven, Java, Node e PostgreSQL rodam dentro dos containers.
+
+```bash
+./rodar.sh          # Windows: rodar.bat   (equivale a: docker compose up --build)
+```
+
+- Painel: http://localhost:5173  ·  API: http://localhost:8080  ·  Banco: `localhost:5432` (payroll/payroll)
+- Na primeira vez demora (baixa imagens e compila). Depois: `docker compose up`.
+- Carregar dados: tela **Importação** ou `curl -F "arquivo=@dados/exemplo_despesa_pessoal.csv" http://localhost:8080/api/importacoes/upload`
+- Parar: `Ctrl+C`; apagar também o banco: `docker compose down -v`.
+
+Prévia das telas em `docs/telas/`.
+
 ## 1. Rodar só o front com dados mockados (nada além do Node)
 
 ```bash

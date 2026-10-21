@@ -14,6 +14,12 @@ import TabelaEntidades from './components/TabelaEntidades.jsx'
 import { periodoTxt } from './formato.js'
 import { useCarregar } from './useCarregar.js'
 
+const ICONES = {
+  consultar: 'M11 4a7 7 0 1 0 4.2 12.6l4.1 4.1 1.4-1.4-4.1-4.1A7 7 0 0 0 11 4Zm0 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z',
+  dashboard: 'M4 13h6V4H4v9Zm0 7h6v-5H4v5Zm10 0h6v-9h-6v9Zm0-16v5h6V4h-6Z',
+  importacao: 'M12 3 6.5 8.5l1.4 1.4L11 6.8V16h2V6.8l3.1 3.1 1.4-1.4L12 3ZM5 18v3h14v-3h-2v1H7v-1H5Z',
+}
+
 const TELAS = { consultar: 'Consultar', dashboard: 'Dashboard', importacao: 'Importação' }
 
 function telaInicial() {
@@ -87,10 +93,12 @@ export default function App() {
   return (
     <div className="app">
       <aside className="side">
-        <div className="logo">Payroll <b>DA</b><small>Despesa com pessoal · LRF · PR</small></div>
+        <div className="logo"><span className="marca" aria-hidden="true" />Payroll <b>DA</b><small>Despesa com pessoal · LRF · PR</small></div>
         <nav className="nav" aria-label="Menu principal">
           {Object.entries(TELAS).map(([k, nome]) => (
-            <button key={k} aria-current={tela === k ? 'page' : undefined} onClick={() => irPara(k)}>{nome}</button>
+            <button key={k} aria-current={tela === k ? 'page' : undefined} onClick={() => irPara(k)}>
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d={ICONES[k]} fill="currentColor" /></svg>{nome}
+            </button>
           ))}
         </nav>
         <div className="side-foot">
