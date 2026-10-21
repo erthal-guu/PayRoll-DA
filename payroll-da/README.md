@@ -12,6 +12,14 @@ payroll-da/
 └── docker-compose.yml
 ```
 
+## Demonstração sem instalar nada (sem Docker, Node ou Java)
+
+Abra `demo/payroll-da-demo.html` com um duplo clique (Chrome, Edge ou Firefox). É o painel inteiro com dados fictícios
+gerados no navegador: dashboard, filtros, detalhe por entidade, consulta (simulada), importação de CSV
+(`dados/exemplo_despesa_pessoal.csv`) e geração do Excel. Não usa backend nem banco; a consulta automática ao SIMAM e o
+assistente com IA só funcionam de verdade com o backend rodando. Para regenerar o arquivo: `cd frontend && npm run build:demo`
+e copiar `dist-demo/index.html`.
+
 ## 0. Rodar tudo só com Docker (sem instalar nada)
 
 Precisa apenas do Docker (Docker Desktop no Windows). Maven, Java, Node e PostgreSQL rodam dentro dos containers.
