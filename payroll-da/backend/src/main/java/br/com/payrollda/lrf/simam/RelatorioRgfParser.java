@@ -118,7 +118,7 @@ public final class RelatorioRgfParser {
         char delimitador = primeira.chars().filter(c -> c == ';').count() > primeira.chars().filter(c -> c == ',').count() ? ';' : ',';
         List<String[]> itens = new ArrayList<>(); // {rótulo sem acento, rótulo original, valor}
         int iItem = -1;
-        int iValor = -1;
+        boolean naTabelaRcl = false; // a segunda tabela do CSV (dsItem2): rótulo, valor e percentual
         try (CSVParser p = CSVFormat.DEFAULT.builder().setDelimiter(delimitador).setIgnoreEmptyLines(true).build()
                 .parse(new StringReader(texto))) {
             for (CSVRecord r : p) {
@@ -126,21 +126,34 @@ public final class RelatorioRgfParser {
                     for (int i = 0; i < r.size(); i++) {
                         if (limpar(r.get(i)).equals("dsItem1")) {
                             iItem = i;
-                        } else if (limpar(r.get(i)).equals("vlLiquidadoPeriodoMovelAnual")) {
-                            iValor = i;
                         }
-                    }
-                    if (iItem < 0 || iValor < 0) {
-                        iItem = -1;
-                        iValor = -1;
                     }
                     continue;
                 }
-                if (r.size() > Math.max(iItem, iValor)) {
-                    String rotulo = limpar(r.get(iItem));
-                    String valor = limpar(r.get(iValor));
-                    if (!rotulo.isEmpty() && !valor.isEmpty()) {
-                        itens.add(new String[] {sem(rotulo), rotulo, valor});
+                if (r.size() > 0 && limpar(r.get(0)).equals("dsItem2")) {
+                    naTabelaRcl = true;
+                    continue;
+                }
+                if (naTabelaRcl) {
+                    if (r.size() >= 2 && !limpar(r.get(0)).isEmpty() && !limpar(r.get(0)).equals("nrAto")) {
+                        String rotulo = limpar(r.get(0));
+                        String v = sem(rotulo).startsWith("LIMITE MAXIMO") && r.size() > 2 ? limpar(r.get(2)) : limpar(r.get(1));
+                        itens.add(new String[] {sem(rotulo), rotulo, traco(v)});
+                    }
+                    continue;
+                }
+                // Tabela de despesas: o nome fica na coluna dsItem1 e, depois dele, vêm os 12 meses e o total
+                // acumulado dos 12 meses (13º valor). Linhas com o nome em outra coluna são a tabela de RAP: ignora.
+                if (r.size() > iItem + 1 && !limpar(r.get(iItem)).isEmpty()) {
+                    List<String> valores = new ArrayList<>();
+                    for (int i = iItem + 1; i < r.size(); i++) {
+                        if (!limpar(r.get(i)).isEmpty()) {
+                            valores.add(limpar(r.get(i)));
+                        }
+                    }
+                    if (!valores.isEmpty()) {
+                        String rotulo = limpar(r.get(iItem));
+                        itens.add(new String[] {sem(rotulo), rotulo, traco(valores.size() > 12 ? valores.get(12) : valores.get(0))});
                     }
                 }
             }
@@ -155,7 +168,7 @@ public final class RelatorioRgfParser {
         BigDecimal naoComputadas = item(itens, true, "DESPESAS NAO COMPUTADAS");
         BigDecimal dtp = item(itens, true, "DESPESA TOTAL COM PESSOAL");
         // O CSV do SIMAM traz só os itens de despesa; a RCL fica em outro relatório. Sem ela, grava 0 e o % fica em 0.
-        BigDecimal rcl = itemOuZero(itens, "RECEITA CORRENTE LIQUIDA");
+        BigDecimal rcl = itemOuZero(itens, "RECEITA CORRENTE LIQUIDA AJUSTADA");
 
         String entidade = rotulo(rotulos, "entidade");
         if (entidade.isEmpty()) {
@@ -190,6 +203,11 @@ public final class RelatorioRgfParser {
         }
         return new LinhaDespesa(codigo(codIbge, municipio), municipio, titulo(entidade), poder, ano, mes,
                 bruta, ativo, inativos, outras, naoComputadas, dtp, rcl);
+    }
+
+    /** No CSV o traço significa zero. */
+    private static String traco(String v) {
+        return v.equals("-") ? "0,00" : v;
     }
 
     private static String rotulo(Map<String, String> rotulos, String chave) {

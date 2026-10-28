@@ -85,4 +85,17 @@ class RelatorioRgfParserTest {
         assertEquals(0, BigDecimal.ZERO.compareTo(s.rclAjustada()));
         assertEquals(0, new BigDecimal("900.00").compareTo(s.despesaTotal()));
     }
+
+    @Test
+    void leOCsvRealDoSimam() throws Exception {
+        String csv = Files.readString(Path.of(RelatorioRgfParserTest.class.getResource("/simam/exportacao-rgf-camara.csv").toURI()), StandardCharsets.UTF_8);
+        LinhaDespesa l = RelatorioRgfParser.deCsvDados(csv,
+                java.util.Map.of("entidade", "Câmara Municipal de Abatiá", "ano", "2019", "periodo", "Janeiro", "municipio", "Abatiá"), "9");
+        assertEquals(0, new BigDecimal("711816.62").compareTo(l.despesaBruta()));
+        assertEquals(0, new BigDecimal("711816.62").compareTo(l.pessoalAtivo()));
+        assertEquals(0, new BigDecimal("711816.62").compareTo(l.despesaTotal()));
+        assertEquals(0, new BigDecimal("19452481.38").compareTo(l.rclAjustada()));
+        assertEquals(Poder.LEGISLATIVO, l.poder());
+        assertEquals(0, new BigDecimal("3.66").compareTo(l.percentual().setScale(2, java.math.RoundingMode.HALF_UP)));
+    }
 }
