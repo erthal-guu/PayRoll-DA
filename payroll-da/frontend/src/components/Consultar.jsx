@@ -53,7 +53,7 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
   }
 
   async function consultar(ev) {
-    ev.preventDefault()
+    ev?.preventDefault()
     setErro(null); setAviso(null); setResultado(null)
     try {
       setEtapa(0)
@@ -93,7 +93,7 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
         <h1>Consulta automática</h1>
         <div className="sub">Escolha os filtros do SIMAM: o sistema busca o relatório no TCE-PR e grava na base, sem você baixar nada.</div>
       </div>
-      {erro && <div className="erro">{erro}</div>}
+      {erro && <div className="erro"><b>A consulta falhou.</b> {erro}</div>}
 
       {erroSimam && !filtros.length ? (
         <div className="panel sem-simam">
@@ -109,6 +109,13 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
           </div>
         </div>
       ) : (
+      <>
+      {erroSimam && (
+        <div className="erro">
+          {erroSimam}{' '}
+          <button className="link" onClick={() => setTentativa((t) => t + 1)} disabled={carregandoFiltros}>Tentar de novo</button>
+        </div>
+      )}
       <form className={`panel form-consulta ${carregandoFiltros ? 'carregando' : ''}`} onSubmit={consultar}>
         {carregandoFiltros && !filtros.length && [0, 1, 2, 3].map((i) => <div key={i} className="campo esqueleto" />)}
         {filtros.map((f, i) => (
@@ -135,9 +142,22 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
           </ol>
         )}
       </form>
+      </>
       )}
 
-      {resultado && (
+      {resultado && !d && (
+        <div className="panel sem-simam consulta-falhou">
+          <div className="panel-head"><h2>A consulta não trouxe o demonstrativo</h2></div>
+          <p className="erro">{resultado.mensagem || 'O SIMAM não devolveu dados para esses filtros.'}</p>
+          <p className="hint" style={{ margin: 0 }}>Confira se a entidade publicou o RGF desse período no SIMAM. Se o problema continuar, baixe o CSV no site do TCE-PR e importe manualmente.</p>
+          <div className="acoes-consulta">
+            <button className="btn" onClick={consultar}>Tentar de novo</button>
+            {irPara && <button className="btn ghost" onClick={() => irPara('importacao')}>Importar o CSV manualmente</button>}
+          </div>
+        </div>
+      )}
+
+      {resultado && d && (
         <div className="panel">
           <div className="panel-head">
             <div>

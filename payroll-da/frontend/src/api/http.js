@@ -98,10 +98,13 @@ export const api = {
     const nome = /filename\*?=(?:UTF-8'')?"?([^";]+)/i.exec(resp.headers.get('Content-Disposition') || '')?.[1]
     return { blob: await resp.blob(), nome: nome ? decodeURIComponent(nome) : `RGF_pessoal_${ano}-${mes}.xlsx` }
   },
+  conversas: () => req('/api/chat/conversas'),
+  conversa: (id) => req(`/api/chat/conversas/${id}`),
+  removerConversa: (id) => req(`/api/chat/conversas/${id}`, { method: 'DELETE' }),
   /** O backend responde de uma vez (sem streaming); onText recebe a resposta completa. */
-  async chat({ mensagens, contexto, onText, signal }) {
+  async chat({ conversaId, mensagens, contexto, onText, signal }) {
     const r = await req('/api/chat', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mensagens, contexto }), signal,
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversaId, mensagens, contexto }), signal,
     })
     onText?.(r.texto)
     return r

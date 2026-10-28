@@ -49,6 +49,20 @@ public class SimamController {
     @ExceptionHandler(IOException.class)
     public ResponseEntity<Map<String, String>> falhaNoSimam(IOException e) {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                .body(Map.of("mensagem", "Não foi possível consultar o SIMAM: " + e.getMessage()));
+                .body(Map.of("mensagem", "Não foi possível consultar o SIMAM: " + motivo(e)));
+    }
+
+    /** Explica em português as falhas de rede mais comuns (algumas exceções vêm sem mensagem). */
+    static String motivo(IOException e) {
+        if (e instanceof java.net.http.HttpTimeoutException) {
+            return "o site do TCE-PR demorou demais para responder. Tente de novo em alguns minutos.";
+        }
+        if (e instanceof java.net.ConnectException || e instanceof java.net.UnknownHostException) {
+            return "não consegui conectar em simam.tce.pr.gov.br. Confira a internet, o firewall ou o proxy deste computador.";
+        }
+        if (e instanceof javax.net.ssl.SSLException) {
+            return "falha no certificado HTTPS do TCE-PR (" + e.getMessage() + ").";
+        }
+        return e.getMessage() == null || e.getMessage().isBlank() ? e.getClass().getSimpleName() : e.getMessage();
     }
 }

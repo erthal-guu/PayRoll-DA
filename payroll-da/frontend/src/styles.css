@@ -402,3 +402,21 @@ table.demonstrativo tr.forte td:first-child { padding-left: 12px; }
 .login-lado .logo { display: none; color: var(--fg); margin-bottom: 8px; }
 .login-lado .logo small { color: var(--muted); }
 @media (max-width: 980px) { .login-lado .logo { display: flex; } }
+
+/* Histórico de conversas do assistente */
+.assistente-acoes { display: flex; align-items: center; gap: 12px; }
+.assistente header .link { color: #c3ccff; }
+.assistente header .link[aria-pressed="true"] { color: #fff; text-decoration: underline; }
+.historico { display: flex; flex-direction: column; gap: 8px; animation: surgir .3s ease both; }
+.historico strong { font-family: var(--f-display); font-size: 14px; }
+.historico-item { display: flex; align-items: stretch; gap: 4px; border: 1px solid var(--line); border-radius: 12px; background: #fff; transition: border-color .2s, transform .2s var(--ease); }
+.historico-item:hover { border-color: var(--accent); transform: translateX(3px); }
+.historico-item.atual { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+.historico-abrir { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 0; background: none; text-align: left; cursor: pointer; }
+.historico-abrir span { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.historico-abrir small { font-size: 12px; color: var(--muted); }
+.historico-apagar { flex: none; width: 34px; border: 0; background: none; color: var(--muted); font-size: 18px; cursor: pointer; border-radius: 0 12px 12px 0; }
+.historico-apagar:hover { color: var(--bad); background: #fef2f2; }
+.consulta-falhou { display: flex; flex-direction: column; gap: 10px; }
+.consulta-falhou .erro { margin: 0; }
+.assistente-acoes .link { white-space: nowrap; }
