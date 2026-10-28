@@ -93,7 +93,11 @@ public class SimamClient {
     /** Lê o estado dos filtros depois de aplicar as escolhas já feitas (para montar/atualizar o formulário). */
     public List<Filtro> filtros(Map<String, String> selecao) throws IOException, InterruptedException {
         Sessao s = abrir();
-        aplicar(s, selecao);
+        try {
+            aplicar(s, selecao);
+        } finally {
+            guardarUltima(s);
+        }
         return lerFiltros(s.pagina);
     }
 
@@ -186,9 +190,12 @@ public class SimamClient {
         }
         for (int passo = 0; passo < 20; passo++) {
             Element proximo = null;
-            for (Element sel : s.pagina.select("select[id*=ddl]")) {
+            for (Element sel : selects(s.pagina)) {
                 String valor = selecao.get(chaveDe(sel));
                 if (valor == null || valor.isBlank()) {
+                    if (sel.hasAttr("disabled") || semOpcoes(sel)) {
+                        continue; // campo que o SIMAM não liberou não bloqueia os seguintes
+                    }
                     break; // filtros seguintes dependem deste
                 }
                 if (!valor.equals(valorAtual(sel))) {
@@ -237,6 +244,16 @@ public class SimamClient {
         }
     }
 
+    /** Guarda a última página do formulário em ultima-pagina.html, para analisar campos que o sistema não reconheceu. */
+    private void guardarUltima(Sessao s) {
+        try {
+            java.nio.file.Files.createDirectories(diagnostico);
+            java.nio.file.Files.writeString(diagnostico.resolve("ultima-pagina.html"), s.pagina.outerHtml());
+        } catch (IOException | RuntimeException ignorado) {
+            // diagnóstico é opcional
+        }
+    }
+
     /** Salva a página que o SIMAM devolveu para análise e monta a mensagem de erro com o caminho do arquivo. */
     private String diagnosticar(Sessao s, String motivo) {
         String arquivo = "";
@@ -253,8 +270,20 @@ public class SimamClient {
                 + (titulo.isBlank() ? "" : " (página: \"" + titulo + "\")") + "." + arquivo;
     }
 
+    /** Selects visíveis do formulário, na ordem da página. */
+    private static List<Element> selects(Document pagina) {
+        return pagina.select("form select").stream()
+                .filter(sel -> !sel.attr("style").replace(" ", "").contains("display:none"))
+                .filter(sel -> sel.parents().stream().noneMatch(p -> p.attr("style").replace(" ", "").contains("display:none")))
+                .toList();
+    }
+
+    private static boolean semOpcoes(Element sel) {
+        return sel.select("option").stream().allMatch(SimamClient::placeholder);
+    }
+
     private static Element select(Document pagina, String chave) {
-        for (Element sel : pagina.select("select[id*=ddl]")) {
+        for (Element sel : selects(pagina)) {
             if (chaveDe(sel).equals(chave)) {
                 return sel;
             }
@@ -263,8 +292,9 @@ public class SimamClient {
     }
 
     private static String chaveDe(Element sel) {
-        String id = sel.id();
-        String resto = id.substring(id.indexOf("ddl") + 3).toLowerCase(Locale.ROOT);
+        String id = sel.id().isBlank() ? sel.attr("name").replaceAll(".*\\$", "") : sel.id();
+        int ddl = id.indexOf("ddl");
+        String resto = (ddl >= 0 ? id.substring(ddl + 3) : id.replaceAll(".*_", "")).toLowerCase(Locale.ROOT);
         return resto.replace("í", "i").replace("ó", "o").replace("é", "e");
     }
 
@@ -285,9 +315,12 @@ public class SimamClient {
 
     private static List<Filtro> lerFiltros(Document pagina) {
         List<Filtro> lista = new ArrayList<>();
-        for (Element sel : pagina.select("select[id*=ddl]")) {
+        for (Element sel : selects(pagina)) {
             String chave = chaveDe(sel);
-            Element lbl = pagina.getElementById(sel.id().replace("ddl", "lbl"));
+            Element lbl = sel.id().isBlank() ? null : pagina.getElementById(sel.id().replace("ddl", "lbl"));
+            if (lbl == null && !sel.id().isBlank()) {
+                lbl = pagina.selectFirst("label[for=" + sel.id() + "]");
+            }
             String rotulo = lbl != null && !lbl.text().isBlank() ? lbl.text().trim() : Character.toUpperCase(chave.charAt(0)) + chave.substring(1);
             List<Opcao> opcoes = sel.select("option").stream()
                     .filter(o -> !placeholder(o))

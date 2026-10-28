@@ -40,7 +40,10 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
 
   // só contam os campos que o SIMAM liberou e que têm opções; os outros não são exigidos
   const exigidos = filtros.filter((f) => f.habilitado && f.opcoes.length > 0)
-  const completo = exigidos.length > 0 && exigidos.every((f) => f.valor)
+  // campo liberado mas vazio, logo depois de campos já preenchidos: o SIMAM não tem nada para essas escolhas
+  const semOpcoes = filtros.filter((f, i) => f.habilitado && f.opcoes.length === 0
+    && filtros.slice(0, i).every((a) => !a.habilitado || !a.opcoes.length || a.valor))
+  const completo = exigidos.length > 0 && exigidos.every((f) => f.valor) && semOpcoes.length === 0
   const rotulo = (chave) => filtros.find((f) => f.chave === chave)?.opcoes.find((o) => o.valor === selecao[chave])?.rotulo
 
   async function baixarExcel(r = resultado) {
@@ -136,8 +139,14 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
             <input id="c-auto" type="checkbox" checked={baixarAuto} onChange={(e) => setBaixarAuto(e.target.checked)} />
             Gerar também a planilha Excel
           </label>
-          {!completo && !carregandoFiltros && <span className="hint">Preencha todos os filtros na ordem numerada.</span>}
+          {!completo && !carregandoFiltros && !semOpcoes.length && <span className="hint">Preencha todos os filtros na ordem numerada.</span>}
         </div>
+        {semOpcoes.length > 0 && !carregandoFiltros && (
+          <div className="inteiro aviso-simam">
+            O SIMAM não trouxe nenhuma opção para <b>{semOpcoes.map((f) => f.rotulo).join(', ')}</b> com as escolhas atuais.
+            Tente outro <b>{filtros[0]?.rotulo || 'Tipo'}</b> (para prefeituras e câmaras, use <b>Município</b>).
+          </div>
+        )}
         {etapa >= 0 && (
           <ol className="etapas inteiro">
             {ETAPAS.map((t, i) => <li key={t} className={i < etapa ? 'feita' : i === etapa ? 'atual' : ''}>{t}</li>)}
