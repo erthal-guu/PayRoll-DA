@@ -71,7 +71,7 @@ code { font: 500 12.5px ui-monospace, monospace; background: var(--panel-2); bor
 
 /* ---------- Hero do dashboard ---------- */
 .hero {
-  position: relative; overflow: hidden; border-radius: 24px; padding: 30px 32px 80px; color: #fff;
+  position: relative; overflow: hidden; border-radius: 24px; padding: 30px 32px 34px; color: #fff;
   background: radial-gradient(600px 300px at 100% 0%, rgba(124, 77, 255, .55), transparent 70%), radial-gradient(500px 300px at 0% 100%, rgba(59, 91, 253, .5), transparent 70%), linear-gradient(135deg, #111c3d, #18224a);
   box-shadow: 0 24px 48px -24px rgba(17, 28, 61, .6);
   display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: center;
@@ -99,7 +99,7 @@ code { font: 500 12.5px ui-monospace, monospace; background: var(--panel-2); bor
 .grade > .panel, .grade-3 > .panel { display: flex; flex-direction: column; }
 
 /* Filtros */
-.barra-filtros { margin-top: -46px; margin-inline: 20px; z-index: 2; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; box-shadow: var(--sombra-alta); }
+.barra-filtros { margin: 0; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; box-shadow: var(--sombra-alta); }
 .barra-filtros:hover { transform: none; }
 .filtros { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
 .campo { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 600; color: var(--muted); }
@@ -378,10 +378,9 @@ table.demonstrativo tr.forte td:first-child { padding-left: 12px; }
   .topo { padding: 16px 0 12px; }
   .topo .selo { display: none; }
   h1, .hero h1 { font-size: 24px; }
-  .hero { padding: 22px 20px 72px; border-radius: 20px; }
+  .hero { padding: 22px 20px 26px; border-radius: 20px; }
   .hero-resumo div { min-width: 0; flex: 1; padding: 12px 14px; }
   .hero-resumo strong { font-size: 22px; }
-  .barra-filtros { margin-inline: 10px; }
   .filtros .campo { flex: 1 1 140px; }
   .panel { padding: 18px; }
   .tabela-wrap { margin-inline: -18px; padding-inline: 18px; }
