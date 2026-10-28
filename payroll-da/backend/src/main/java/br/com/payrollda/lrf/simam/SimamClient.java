@@ -193,8 +193,8 @@ public class SimamClient {
             for (Element sel : selects(s.pagina)) {
                 String valor = selecao.get(chaveDe(sel));
                 if (valor == null || valor.isBlank()) {
-                    if (sel.hasAttr("disabled") || semOpcoes(sel)) {
-                        continue; // campo que o SIMAM não liberou não bloqueia os seguintes
+                    if (sel.hasAttr("disabled") || semOpcoes(sel) || !valorAtual(sel).isEmpty()) {
+                        continue; // campo não liberado, ou que já vem escolhido pelo SIMAM, não bloqueia os seguintes
                     }
                     break; // filtros seguintes dependem deste
                 }
@@ -291,11 +291,13 @@ public class SimamClient {
         return null;
     }
 
+    /** Chave do campo a partir do id, sem acento e sem o prefixo do controle (ddl, cbo, sel...). */
     private static String chaveDe(Element sel) {
         String id = sel.id().isBlank() ? sel.attr("name").replaceAll(".*\\$", "") : sel.id();
-        int ddl = id.indexOf("ddl");
-        String resto = (ddl >= 0 ? id.substring(ddl + 3) : id.replaceAll(".*_", "")).toLowerCase(Locale.ROOT);
-        return resto.replace("í", "i").replace("ó", "o").replace("é", "e");
+        String limpo = java.text.Normalizer.normalize(id, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "").toLowerCase(Locale.ROOT);
+        String ultimo = limpo.replaceAll(".*[_$]", "").replaceFirst("^(ddl|cbo|cmb|sel|drp|lst|dd)", "");
+        return ultimo.isBlank() ? limpo : ultimo;
     }
 
     private static String valorAtual(Element sel) {
@@ -317,9 +319,12 @@ public class SimamClient {
         List<Filtro> lista = new ArrayList<>();
         for (Element sel : selects(pagina)) {
             String chave = chaveDe(sel);
-            Element lbl = sel.id().isBlank() ? null : pagina.getElementById(sel.id().replace("ddl", "lbl"));
-            if (lbl == null && !sel.id().isBlank()) {
+            Element lbl = null;
+            if (!sel.id().isBlank()) {
                 lbl = pagina.selectFirst("label[for=" + sel.id() + "]");
+                if (lbl == null && sel.id().contains("ddl")) {
+                    lbl = pagina.getElementById(sel.id().replace("ddl", "lbl"));
+                }
             }
             String rotulo = lbl != null && !lbl.text().isBlank() ? lbl.text().trim() : Character.toUpperCase(chave.charAt(0)) + chave.substring(1);
             List<Opcao> opcoes = sel.select("option").stream()

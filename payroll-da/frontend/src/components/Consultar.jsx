@@ -32,7 +32,8 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
   function escolher(chave, valor) {
     const ordem = filtros.map((f) => f.chave)
     const novo = {}
-    ordem.slice(0, ordem.indexOf(chave)).forEach((k) => { if (selecao[k]) novo[k] = selecao[k] })
+    // campos anteriores entram com o valor que está na tela, inclusive o que o SIMAM já traz escolhido (ex.: Tipo = Município)
+    filtros.slice(0, ordem.indexOf(chave)).forEach((f) => { if (f.valor) novo[f.chave] = f.valor })
     if (valor) novo[chave] = valor
     setSelecao(novo)
     setResultado(null)
