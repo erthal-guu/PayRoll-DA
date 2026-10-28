@@ -14,7 +14,7 @@ export default function Filtros({ filtros, setFiltros, periodos, municipios, nom
   ].filter(Boolean)
 
   return (
-    <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div className="panel barra-filtros">
       <div className="filtros">
         <label className="campo" htmlFor="f-periodo">Período (12 meses até)
           <select id="f-periodo" value={valorPeriodo} onChange={(e) => {

@@ -32,6 +32,13 @@ function telaInicial(TELAS) {
   return TELAS[h] ? h : Object.keys(TELAS)[0]
 }
 
+const iniciais = (nome) => nome.split(' ').filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase()
+
+function saudacao() {
+  const h = new Date().getHours()
+  return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'
+}
+
 /** Pede login antes de mostrar o painel. */
 export default function App() {
   const [usuario, setUsuario] = useState(null)
@@ -110,28 +117,41 @@ function Painel({ usuario, sair }) {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  const ultimoPeriodo = periodos.dados?.[0]
   const erro = periodos.erro || resumo.erro || tabela.erro
   const semDados = periodos.dados && periodos.dados.length === 0
 
   return (
     <div className="app">
       <aside className="side">
-        <div className="logo"><span className="marca" aria-hidden="true" />Payroll <b>DA</b><small>Despesa com pessoal · LRF · PR</small></div>
+        <div className="logo"><span className="marca" aria-hidden="true" /><span>Payroll <b>DA</b><small>Despesa com pessoal · LRF · PR</small></span></div>
+        <div className="secao-menu">Menu</div>
         <nav className="nav" aria-label="Menu principal">
           {Object.entries(TELAS).map(([k, nome]) => (
             <button key={k} aria-current={tela === k ? 'page' : undefined} onClick={() => irPara(k)}>
-              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d={ICONES[k]} fill="currentColor" /></svg>{nome}
+              <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path d={ICONES[k]} fill="currentColor" /></svg>{nome}
             </button>
           ))}
         </nav>
-        <div className="side-foot usuario-logado">
-          <b>{usuario.nome}</b>
-          <span>{usuario.perfil === 'ADMIN' ? 'Administrador' : `Prefeitura · ${usuario.municipio || usuario.codIbge}`}</span>
-          <button className="link" onClick={sair}>Sair</button>
+        <div className="side-foot">
+          <div className="usuario-logado">
+            <span className="avatar" aria-hidden="true">{iniciais(usuario.nome)}</span>
+            <div className="quem">
+              <b>{usuario.nome}</b>
+              <span>{usuario.perfil === 'ADMIN' ? 'Administrador' : `Prefeitura · ${usuario.municipio || usuario.codIbge}`}</span>
+            </div>
+            <button className="sair" onClick={sair} title="Sair" aria-label="Sair">
+              <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path fill="currentColor" d="M10 4H5v16h5v-2H7V6h3V4Zm5.6 3.6-1.4 1.4 2 2H9v2h7.2l-2 2 1.4 1.4L20 12l-4.4-4.4Z" /></svg>
+            </button>
+          </div>
         </div>
       </aside>
 
       <main>
+        <header className="topo">
+          <div className="ola">{saudacao()},<b>{usuario.nome.split(' ')[0]}</b></div>
+          {ultimoPeriodo && <span className="selo"><i aria-hidden="true" />Dados até {periodoTxt(ultimoPeriodo)}</span>}
+        </header>
         <div className="tela" key={tela}>
         {tela === 'consultar' ? (
           <Consultar aoConsultar={() => setVersao((v) => v + 1)} verNoDashboard={verNoDashboard} irPara={irPara}
@@ -142,13 +162,23 @@ function Painel({ usuario, sair }) {
           <Usuarios usuario={usuario} municipios={municipios.dados || []} />
         ) : (
           <>
-            <div>
-              <h1>Despesa com pessoal dos municípios</h1>
-              <div className="sub">
-                Limites da LRF: Executivo 54% e Legislativo 6% da receita corrente líquida
-                {resumo.dados && ` · 12 meses até ${periodoTxt(resumo.dados.periodo)}`}
+            <section className="hero">
+              <div>
+                <span className="rotulo-hero">
+                  {resumo.dados ? `12 meses até ${periodoTxt(resumo.dados.periodo)}` : 'Lei de Responsabilidade Fiscal'}
+                </span>
+                <h1>Despesa com pessoal dos municípios</h1>
+                <div className="sub">Limites da LRF: Executivo 54% e Legislativo 6% da receita corrente líquida.</div>
               </div>
-            </div>
+              {resumo.dados && (
+                <div className="hero-resumo">
+                  <div><strong>{resumo.dados.entidades}</strong><span>entidades no filtro</span></div>
+                  <div className={resumo.dados.faixas.ACIMA_LIMITE ? 'ruim' : ''}>
+                    <strong>{resumo.dados.faixas.ACIMA_LIMITE}</strong><span>acima do limite máximo</span>
+                  </div>
+                </div>
+              )}
+            </section>
 
             {erro && <div className="erro">{erro}</div>}
             {semDados && (

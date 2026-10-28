@@ -97,7 +97,7 @@ export default function Importacao({ aoImportar }) {
                       <td>{i.id}</td>
                       <td>{{ UPLOAD: 'Manual', SIMAM: 'Automática' }[i.origem] ?? 'URL'}</td>
                       <td style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis' }} title={i.referencia}>{i.referencia}</td>
-                      <td><span className="pill" style={{ color: STATUS[i.status][1], border: `1px solid ${STATUS[i.status][1]}` }}>{STATUS[i.status][0]}</span></td>
+                      <td><span className="pill" style={{ '--c': STATUS[i.status][1] }}>{STATUS[i.status][0]}</span></td>
                       <td className="n">{i.linhasImportadas.toLocaleString('pt-BR')}</td>
                       <td className="n">{i.linhasComErro > 0 ? <button className="link">{i.linhasComErro} ver</button> : 0}</td>
                       <td style={{ whiteSpace: 'normal', minWidth: 220 }}>{i.mensagem ?? 'Lendo o arquivo…'}</td>

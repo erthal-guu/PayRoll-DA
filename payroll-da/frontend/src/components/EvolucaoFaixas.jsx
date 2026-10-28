@@ -7,7 +7,7 @@ export default function EvolucaoFaixas({ dados, periodoAtual, setPeriodo }) {
   return (
     <div className="panel">
       <div className="panel-head"><h2>Evolução por faixa</h2><p className="hint">Clique num mês para mudar o período</p></div>
-      <div style={{ width: '100%', height: 250 }}>
+      <div className="grafico-cheio">
         <ResponsiveContainer>
           <BarChart data={linhas} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}
             onClick={(e) => e?.activePayload && setPeriodo(e.activePayload[0].payload)}>
@@ -22,9 +22,9 @@ export default function EvolucaoFaixas({ dados, periodoAtual, setPeriodo }) {
                 ))}
               </div>) : null} />
             {Object.entries(FAIXAS).map(([k, f]) => (
-              <Bar key={k} dataKey={k} stackId="f" fill={f.cor} cursor="pointer" isAnimationActive={false}
+              <Bar key={k} dataKey={k} stackId="f" fill={f.cor} cursor="pointer" animationDuration={800}
                 shape={(props) => <rect x={props.x} y={props.y} width={props.width} height={Math.max(props.height, 0)}
-                  fill={f.cor} opacity={ehAtual(props.payload) ? 1 : 0.7} />} />
+                  fill={f.cor} opacity={!periodoAtual || ehAtual(props.payload) ? 1 : 0.55} />} />
             ))}
           </BarChart>
         </ResponsiveContainer>

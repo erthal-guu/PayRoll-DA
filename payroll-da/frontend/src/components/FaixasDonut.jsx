@@ -13,8 +13,8 @@ export default function FaixasDonut({ resumo, faixa, setFaixa }) {
         <div style={{ width: 180, height: 180, position: 'relative' }}>
           <ResponsiveContainer>
             <PieChart>
-              <Pie data={dados} dataKey="valor" nameKey="nome" innerRadius={56} outerRadius={84} paddingAngle={2}
-                stroke="var(--panel)" onClick={(d) => alternar(d.chave)} isAnimationActive={false}>
+              <Pie data={dados} dataKey="valor" nameKey="nome" innerRadius={60} outerRadius={88} paddingAngle={3} cornerRadius={6}
+                stroke="var(--panel)" onClick={(d) => alternar(d.chave)} animationDuration={900}>
                 {dados.map((d) => (
                   <Cell key={d.chave} fill={d.cor} cursor="pointer" opacity={!faixa || faixa === d.chave ? 1 : 0.3} />
                 ))}
@@ -23,9 +23,7 @@ export default function FaixasDonut({ resumo, faixa, setFaixa }) {
                 <div className="tooltip"><strong>{payload[0].name}</strong>{payload[0].value} entidades</div>) : null} />
             </PieChart>
           </ResponsiveContainer>
-          <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none', textAlign: 'center' }}>
-            <div><div style={{ font: '500 24px var(--f-num)' }}>{total}</div><div className="hint">entidades</div></div>
-          </div>
+          <div className="donut-centro"><div><strong>{total}</strong><span className="hint">entidades</span></div></div>
         </div>
         <ul className="legenda">
           {dados.map((d) => (

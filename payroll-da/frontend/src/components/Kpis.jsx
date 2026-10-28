@@ -8,16 +8,17 @@ const ICONES = {
   alerta: 'M12 2 1 21h22L12 2Zm0 4.2L19.5 19h-15L12 6.2ZM11 10v5h2v-5h-2Zm0 6v2h2v-2h-2Z',
 }
 
-function Kpi({ rotulo, valor, formatar, det, icone, perigo, i }) {
+function Kpi({ rotulo, valor, formatar, det, icone, perigo, cor, barra, i }) {
   const animado = useContador(valor)
   return (
-    <div className={`panel kpi ${perigo ? 'perigo' : ''}`} style={{ '--i': i }}>
+    <div className={`panel kpi ${perigo ? 'perigo' : ''}`} style={{ '--i': i, '--cor': cor }}>
       <div className="kpi-topo">
+        <span className="kpi-icone" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path d={ICONES[icone]} fill="currentColor" /></svg></span>
         <span className="rotulo">{rotulo}</span>
-        <span className="kpi-icone" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d={ICONES[icone]} fill="currentColor" /></svg></span>
       </div>
       <div className="valor">{formatar(animado)}</div>
       <div className="det">{det}</div>
+      {barra != null && <div className="barrinha" aria-hidden="true"><span style={{ width: `${Math.min(100, Math.max(0, barra))}%` }} /></div>}
     </div>
   )
 }
@@ -27,10 +28,11 @@ export default function Kpis({ resumo }) {
   const fora = resumo.faixas.ACIMA_LIMITE + resumo.faixas.PRUDENCIAL
   const inteiro = (n) => Math.round(n).toLocaleString('pt-BR')
   const itens = [
-    { rotulo: 'Entidades analisadas', valor: resumo.entidades, formatar: inteiro, det: 'prefeituras e câmaras no filtro', icone: 'entidades' },
-    { rotulo: 'Despesa total com pessoal', valor: Number(resumo.despesaTotal), formatar: moeda, det: 'soma dos últimos 12 meses', icone: 'despesa' },
-    { rotulo: 'Uso médio do limite', valor: Number(resumo.usoMedioLimite), formatar: (n) => pct(n, 1), det: '100% = limite máximo da LRF', icone: 'uso' },
-    { rotulo: 'Acima do prudencial', valor: fora, formatar: inteiro, det: `${resumo.faixas.ACIMA_LIMITE} acima do limite máximo`, icone: 'alerta', perigo: fora > 0 },
+    { rotulo: 'Entidades analisadas', valor: resumo.entidades, formatar: inteiro, det: 'prefeituras e câmaras no filtro', icone: 'entidades', cor: '#3b5bfd' },
+    { rotulo: 'Despesa total com pessoal', valor: Number(resumo.despesaTotal), formatar: moeda, det: 'soma dos últimos 12 meses', icone: 'despesa', cor: '#7c4dff' },
+    { rotulo: 'Uso médio do limite', valor: Number(resumo.usoMedioLimite), formatar: (n) => pct(n, 1), det: '100% = limite máximo da LRF', icone: 'uso', cor: '#12b981', barra: Number(resumo.usoMedioLimite) },
+    { rotulo: 'Acima do prudencial', valor: fora, formatar: inteiro, det: `${resumo.faixas.ACIMA_LIMITE} acima do limite máximo`, icone: 'alerta', perigo: fora > 0, cor: fora > 0 ? '#ef4444' : '#f5a524',
+      barra: resumo.entidades ? (fora / resumo.entidades) * 100 : 0 },
   ]
   return (
     <div className="kpis">

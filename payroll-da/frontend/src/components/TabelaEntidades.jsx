@@ -41,7 +41,7 @@ export default function TabelaEntidades({ pagina, ordem, setOrdem, irPara, selec
                 <td className="n">{moeda(e.despesaTotal)}</td>
                 <td className="n">{pct(e.percentual)}</td>
                 <td className="n">{pct((e.percentual / e.limiteMaximo) * 100, 1)}</td>
-                <td><span className="pill" style={{ color: FAIXAS[e.faixa].cor, background: 'var(--panel-2)', border: `1px solid ${FAIXAS[e.faixa].cor}` }}>{FAIXAS[e.faixa].nome}</span></td>
+                <td><span className="pill" style={{ '--c': FAIXAS[e.faixa].cor }}>{FAIXAS[e.faixa].nome}</span></td>
               </tr>
             ))}
             {!pagina.itens.length && <tr><td colSpan={6} className="vazio">Nenhuma entidade encontrada com esses filtros.</td></tr>}

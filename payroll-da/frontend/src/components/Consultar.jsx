@@ -144,7 +144,7 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
               <h2>{d ? d.entidade : 'Sem resultado'}</h2>
               {d && <div className="hint">{d.municipio} · 12 meses até {MESES[d.mes - 1]}/{d.ano} · Poder {d.poder === 'EXECUTIVO' ? 'Executivo' : 'Legislativo'}</div>}
             </div>
-            {d && <span className="pill" style={{ color: FAIXAS[d.faixa].cor, border: `1px solid ${FAIXAS[d.faixa].cor}` }}>{FAIXAS[d.faixa].nome}</span>}
+            {d && <span className="pill" style={{ '--c': FAIXAS[d.faixa].cor }}>{FAIXAS[d.faixa].nome}</span>}
           </div>
           {resultado.importacao && (
             <p className="hint" style={{ marginTop: 0 }}>Importação #{resultado.importacao.id}: {resultado.importacao.mensagem}</p>
