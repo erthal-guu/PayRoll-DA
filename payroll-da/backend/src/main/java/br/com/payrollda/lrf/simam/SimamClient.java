@@ -36,9 +36,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class SimamClient {
 
-    /** Ordem em que os filtros dependem uns dos outros no formulário. */
-    static final List<String> ORDEM = List.of("tipo", "municipio", "entidade", "relatorio", "ano", "periodo");
-
     public record Opcao(String valor, String rotulo) {
     }
 
@@ -54,11 +51,14 @@ public class SimamClient {
 
     private final URI urlFormulario;
     private final Duration espera;
+    private final java.nio.file.Path diagnostico;
 
     public SimamClient(@Value("${tce.simam.url:https://simam.tce.pr.gov.br/Paginas/Rel_LRF.aspx?relTipo=1}") String url,
-                       @Value("${tce.simam.espera-ms:1500}") long esperaMs) {
+                       @Value("${tce.simam.espera-ms:1500}") long esperaMs,
+                       @Value("${tce.simam.diagnostico:${java.io.tmpdir}/simam-diagnostico}") String diagnostico) {
         this.urlFormulario = URI.create(url);
         this.espera = Duration.ofMillis(esperaMs);
+        this.diagnostico = java.nio.file.Path.of(diagnostico);
     }
 
     private static final class Sessao {
@@ -124,35 +124,81 @@ public class SimamClient {
         return s;
     }
 
-    /** Escolhe os filtros na ordem de dependência; cada select com AutoPostBack dispara o postback do site. */
+    /**
+     * Escolhe os filtros na ordem em que aparecem no formulário (cada um depende dos anteriores); cada select com
+     * AutoPostBack dispara o postback do site, que pode mostrar campos novos. Depois de cada postback confere se o
+     * SIMAM aceitou a escolha.
+     */
     private void aplicar(Sessao s, Map<String, String> selecao) throws IOException, InterruptedException {
-        for (String chave : ORDEM) {
-            String valor = selecao == null ? null : selecao.get(chave);
-            if (valor == null || valor.isBlank()) {
-                break; // filtros seguintes dependem deste
+        if (selecao == null || selecao.isEmpty()) {
+            return;
+        }
+        for (int passo = 0; passo < 20; passo++) {
+            Element proximo = null;
+            for (Element sel : s.pagina.select("select[id*=ddl]")) {
+                String valor = selecao.get(chaveDe(sel));
+                if (valor == null || valor.isBlank()) {
+                    break; // filtros seguintes dependem deste
+                }
+                if (!valor.equals(valorAtual(sel))) {
+                    proximo = sel;
+                    break;
+                }
             }
-            Element sel = select(s.pagina, chave);
-            if (sel == null || sel.hasAttr("disabled")) {
+            if (proximo == null) {
                 break;
             }
-            if (valor.equals(valorAtual(sel))) {
-                continue;
+            String chave = chaveDe(proximo);
+            String valor = selecao.get(chave);
+            if (proximo.hasAttr("disabled")) {
+                throw new IOException(diagnosticar(s, "o SIMAM deixou o campo \"" + chave + "\" desabilitado"));
             }
-            if (sel.select("option").stream().noneMatch(o -> o.attr("value").equals(valor))) {
-                throw new IllegalArgumentException("Opção inválida para o filtro \"" + chave + "\".");
+            if (proximo.select("option").stream().noneMatch(o -> o.attr("value").equals(valor))) {
+                throw new IllegalArgumentException("Opção inválida para o filtro \"" + chave + "\". Recarregue a página e escolha de novo.");
             }
-            Map<String, String> campos = campos(s.pagina);
-            campos.put(sel.attr("name"), valor);
-            if (sel.attr("onchange").contains("__doPostBack")) {
-                campos.put("__EVENTTARGET", sel.attr("name"));
+            if (proximo.attr("onchange").contains("__doPostBack")) {
+                Map<String, String> campos = campos(s.pagina);
+                campos.put(proximo.attr("name"), valor);
+                campos.put("__EVENTTARGET", proximo.attr("name"));
                 campos.put("__EVENTARGUMENT", "");
                 postar(s, campos);
+                Element depois = select(s.pagina, chave);
+                if (depois == null || !valor.equals(valorAtual(depois))) {
+                    throw new IOException(diagnosticar(s, "o SIMAM não aceitou a escolha do campo \"" + chave + "\""));
+                }
             } else {
                 // sem postback: o valor só vale no envio final; guardamos na própria página
-                sel.select("option").forEach(o -> o.attr("selected", o.attr("value").equals(valor) ? "selected" : null));
+                proximo.select("option").forEach(o -> {
+                    if (o.attr("value").equals(valor)) {
+                        o.attr("selected", "selected");
+                    } else {
+                        o.removeAttr("selected");
+                    }
+                });
             }
             Thread.sleep(200); // um pedido por vez, sem martelar o servidor
         }
+        for (Map.Entry<String, String> e : selecao.entrySet()) {
+            if (e.getValue() != null && !e.getValue().isBlank() && select(s.pagina, e.getKey()) == null) {
+                throw new IOException(diagnosticar(s, "o campo \"" + e.getKey() + "\" não apareceu na página do SIMAM depois das escolhas anteriores"));
+            }
+        }
+    }
+
+    /** Salva a página que o SIMAM devolveu para análise e monta a mensagem de erro com o caminho do arquivo. */
+    private String diagnosticar(Sessao s, String motivo) {
+        String arquivo = "";
+        try {
+            java.nio.file.Files.createDirectories(diagnostico);
+            java.nio.file.Path p = diagnostico.resolve("filtros-" + System.currentTimeMillis() + ".html");
+            java.nio.file.Files.writeString(p, s.pagina.outerHtml());
+            arquivo = " A página recebida foi salva em " + p + ".";
+        } catch (IOException | RuntimeException ignorado) {
+            // sem diagnóstico, segue só com a mensagem
+        }
+        String titulo = s.pagina.title();
+        return "Não consegui preencher o formulário: " + motivo
+                + (titulo.isBlank() ? "" : " (página: \"" + titulo + "\")") + "." + arquivo;
     }
 
     private static Element select(Document pagina, String chave) {
@@ -172,7 +218,17 @@ public class SimamClient {
 
     private static String valorAtual(Element sel) {
         Element o = sel.selectFirst("option[selected]");
-        return o != null ? o.attr("value") : sel.selectFirst("option") != null ? sel.selectFirst("option").attr("value") : "";
+        if (o == null) {
+            o = sel.selectFirst("option");
+        }
+        return o == null || placeholder(o) ? "" : o.attr("value");
+    }
+
+    /** Opção do tipo "Selecione..." (valor vazio, 0 ou -1 com texto de instrução), que não é uma escolha de verdade. */
+    private static boolean placeholder(Element o) {
+        String v = o.attr("value").trim();
+        String t = o.text().trim().toLowerCase(Locale.ROOT);
+        return v.isEmpty() || ((v.equals("0") || v.equals("-1")) && (t.startsWith("selecione") || t.startsWith("--") || t.isEmpty()));
     }
 
     private static List<Filtro> lerFiltros(Document pagina) {
@@ -182,11 +238,10 @@ public class SimamClient {
             Element lbl = pagina.getElementById(sel.id().replace("ddl", "lbl"));
             String rotulo = lbl != null && !lbl.text().isBlank() ? lbl.text().trim() : Character.toUpperCase(chave.charAt(0)) + chave.substring(1);
             List<Opcao> opcoes = sel.select("option").stream()
-                    .filter(o -> !o.attr("value").isBlank())
+                    .filter(o -> !placeholder(o))
                     .map(o -> new Opcao(o.attr("value"), o.text().trim())).toList();
             lista.add(new Filtro(chave, sel.id(), rotulo, !sel.hasAttr("disabled"), valorAtual(sel), opcoes));
         }
-        lista.sort(java.util.Comparator.comparingInt(f -> ORDEM.indexOf(f.chave()) < 0 ? 99 : ORDEM.indexOf(f.chave())));
         return lista;
     }
 
