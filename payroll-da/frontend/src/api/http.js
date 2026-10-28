@@ -98,6 +98,11 @@ export const api = {
   consultarSimam: (selecao) => req('/api/simam/consultar', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ selecao }),
   }, 170000),
+  async simamDiagnostico() {
+    const resp = await fetch(`${BASE}/api/simam/diagnostico`, comToken())
+    if (!resp.ok) throw new Error('Não foi possível gerar o diagnóstico.')
+    return { blob: await resp.blob(), nome: 'simam-diagnostico.zip' }
+  },
   async excel({ entidadeId, ano, mes }) {
     const resp = await fetch(`${BASE}/api/consultas/excel${query({ entidadeId, ano, mes })}`, comToken())
     if (!resp.ok) throw new Error('Não foi possível gerar o Excel.')

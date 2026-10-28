@@ -19,9 +19,11 @@ import br.com.payrollda.lrf.consulta.ConsultaController.Resposta;
 public class SimamController {
 
     private final SimamService service;
+    private final SimamClient client;
 
-    public SimamController(SimamService service) {
+    public SimamController(SimamService service, SimamClient client) {
         this.service = service;
+        this.client = client;
     }
 
     public record Pedido(Map<String, String> selecao) {
@@ -39,6 +41,15 @@ public class SimamController {
             throw new IllegalArgumentException("Informe os filtros da consulta.");
         }
         return service.consultar(p.selecao());
+    }
+
+    /** Páginas que o SIMAM devolveu na última operação, para entender quando o formulário muda. */
+    @org.springframework.web.bind.annotation.GetMapping("/diagnostico")
+    public ResponseEntity<byte[]> diagnostico() throws IOException {
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\"simam-diagnostico.zip\"")
+                .contentType(org.springframework.http.MediaType.parseMediaType("application/zip"))
+                .body(client.diagnosticoZip());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

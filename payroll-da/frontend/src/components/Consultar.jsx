@@ -58,6 +58,13 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
     }
   }
 
+  async function baixarDiagnostico() {
+    try {
+      const { blob, nome } = await api.simamDiagnostico()
+      await salvarArquivo(blob, nome)
+    } catch (e) { setAviso(e.message) }
+  }
+
   async function consultar(ev) {
     ev?.preventDefault()
     setErro(null); setAviso(null); setResultado(null)
@@ -148,6 +155,9 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
             Tente outro <b>{filtros[0]?.rotulo || 'Tipo'}</b> (para prefeituras e câmaras, use <b>Município</b>).
           </div>
         )}
+        <div className="inteiro hint">
+          Algo diferente do site do TCE-PR? <button type="button" className="link" onClick={baixarDiagnostico}>Baixar o diagnóstico do SIMAM</button> e envie para o suporte.
+        </div>
         {etapa >= 0 && (
           <ol className="etapas inteiro">
             {ETAPAS.map((t, i) => <li key={t} className={i < etapa ? 'feita' : i === etapa ? 'atual' : ''}>{t}</li>)}

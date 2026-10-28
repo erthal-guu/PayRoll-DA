@@ -72,6 +72,12 @@ public class SimamClient {
         this.diagnostico = java.nio.file.Path.of(diagnostico);
     }
 
+    /** Um pedido feito ao SIMAM, guardado para o diagnóstico. */
+    record Passo(String etapa, String pedido, String corpo, int status, String resposta) {
+    }
+
+    private volatile List<Passo> ultimoRastro = List.of();
+
     private static final class Sessao {
         final HttpClient http = HttpClient.newBuilder()
                 .cookieHandler(new CookieManager(null, CookiePolicy.ACCEPT_ALL))
@@ -81,6 +87,7 @@ public class SimamClient {
         URI url;
         final long prazo = System.nanoTime() + LIMITE_TOTAL.toNanos();
         String etapa = "abrindo o formulário";
+        final List<Passo> rastro = new ArrayList<>();
 
         /** Tempo que ainda resta para o próximo pedido; falha com uma mensagem clara quando acabou. */
         Duration restante() throws java.net.http.HttpTimeoutException {
@@ -97,16 +104,19 @@ public class SimamClient {
     /** Lê o estado dos filtros depois de aplicar as escolhas já feitas (para montar/atualizar o formulário). */
     public List<Filtro> filtros(Map<String, String> selecao) throws IOException, InterruptedException {
         Sessao s = abrir();
+        ultimoRastro = s.rastro;
         try {
             aplicar(s, selecao);
         } finally {
             guardarUltima(s);
+            ultimoRastro = s.rastro;
         }
         return lerFiltros(s.pagina);
     }
 
     public Retorno consultar(Map<String, String> selecao) throws IOException, InterruptedException {
         Sessao s = abrir();
+        ultimoRastro = s.rastro;
         aplicar(s, selecao);
         for (Filtro f : lerFiltros(s.pagina)) {
             if (f.habilitado() && !f.opcoes().isEmpty() && (f.valor() == null || f.valor().isBlank())) {
@@ -123,6 +133,7 @@ public class SimamClient {
         s.etapa = "esperando a tela do relatório";
         String html = s.pagina.outerHtml();
         String base = exportBase(html);
+        ultimoRastro = s.rastro;
         for (int i = 0; base == null && i < 3; i++) { // a tela de visualização às vezes carrega o relatório depois
             Thread.sleep(espera.toMillis());
             s.pagina = Jsoup.parse(get(s, s.url), s.url.toString());
@@ -361,13 +372,14 @@ public class SimamClient {
         StringBuilder corpo = new StringBuilder();
         campos.forEach((k, v) -> corpo.append(corpo.length() > 0 ? "&" : "")
                 .append(URLEncoder.encode(k, StandardCharsets.UTF_8)).append('=').append(URLEncoder.encode(v == null ? "" : v, StandardCharsets.UTF_8)));
+        CORPO_ATUAL.set(resumirCorpo(campos));
         HttpRequest req = HttpRequest.newBuilder(s.url).timeout(s.restante())
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .header("Referer", s.url.toString())
                 .header("User-Agent", NAVEGADOR)
                 .header("Accept-Language", "pt-BR,pt;q=0.9")
                 .POST(HttpRequest.BodyPublishers.ofString(corpo.toString())).build();
-        HttpResponse<String> r = enviar(s, req);
+        HttpResponse<String> r = enviar(s, req, CORPO_ATUAL.get());
         if (r.statusCode() >= 400) {
             throw new IOException("O SIMAM respondeu HTTP " + r.statusCode() + ".");
         }
@@ -375,16 +387,56 @@ public class SimamClient {
         s.pagina = Jsoup.parse(r.body(), r.uri().toString());
     }
 
-    private static HttpResponse<String> enviar(Sessao s, HttpRequest req) throws IOException, InterruptedException {
+    private static final ThreadLocal<String> CORPO_ATUAL = new ThreadLocal<>();
+
+    private static HttpResponse<String> enviar(Sessao s, HttpRequest req, String corpo) throws IOException, InterruptedException {
+        CORPO_ATUAL.remove();
         long inicio = System.nanoTime();
         log.info("SIMAM: {} ({} {})", s.etapa, req.method(), req.uri().getPath());
         try {
             HttpResponse<String> r = s.http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            log.info("SIMAM: respondeu {} em {} ms", r.statusCode(), (System.nanoTime() - inicio) / 1_000_000);
+            log.info("SIMAM: respondeu {} em {} ms ({} caracteres, endereço final {})", r.statusCode(),
+                    (System.nanoTime() - inicio) / 1_000_000, r.body().length(), r.uri());
+            s.rastro.add(new Passo(s.etapa, req.method() + " " + req.uri() + " -> " + r.uri(), corpo, r.statusCode(), r.body()));
             return r;
         } catch (java.net.http.HttpTimeoutException e) {
             throw new java.net.http.HttpTimeoutException("o SIMAM não respondeu a tempo (etapa: " + s.etapa + ")");
         }
+    }
+
+    /** Campos enviados, sem o conteúdo enorme do __VIEWSTATE/__EVENTVALIDATION. */
+    private static String resumirCorpo(Map<String, String> campos) {
+        StringBuilder b = new StringBuilder();
+        campos.forEach((k, v) -> b.append(k).append(" = ")
+                .append(v != null && v.length() > 80 ? v.substring(0, 40) + "… (" + v.length() + " caracteres)" : v).append('\n'));
+        return b.toString();
+    }
+
+    /** Zip com cada página que o SIMAM devolveu na última operação e um resumo dos pedidos. */
+    public byte[] diagnosticoZip() throws IOException {
+        var saida = new java.io.ByteArrayOutputStream();
+        try (var zip = new java.util.zip.ZipOutputStream(saida, StandardCharsets.UTF_8)) {
+            StringBuilder resumo = new StringBuilder();
+            int i = 1;
+            for (Passo p : ultimoRastro) {
+                String nome = String.format("%02d-pagina.html", i);
+                resumo.append(String.format("#%02d %s%n%s%nHTTP %d, %d caracteres -> %s%n", i, p.etapa(), p.pedido(),
+                        p.status(), p.resposta().length(), nome));
+                if (p.corpo() != null) {
+                    resumo.append("Campos enviados:\n").append(p.corpo());
+                }
+                resumo.append('\n');
+                zip.putNextEntry(new java.util.zip.ZipEntry(nome));
+                zip.write(p.resposta().getBytes(StandardCharsets.UTF_8));
+                zip.closeEntry();
+                i++;
+            }
+            zip.putNextEntry(new java.util.zip.ZipEntry("resumo.txt"));
+            zip.write((resumo.isEmpty() ? "Nenhuma consulta ao SIMAM feita desde que o backend subiu.\n" : resumo.toString())
+                    .getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+        }
+        return saida.toByteArray();
     }
 
     private String get(Sessao s, URI uri) throws IOException, InterruptedException {
@@ -392,7 +444,7 @@ public class SimamClient {
                 .header("User-Agent", NAVEGADOR)
                 .header("Accept-Language", "pt-BR,pt;q=0.9")
                 .header("Referer", s.url == null ? uri.toString() : s.url.toString()).GET().build();
-        HttpResponse<String> r = enviar(s, req);
+        HttpResponse<String> r = enviar(s, req, CORPO_ATUAL.get());
         if (r.statusCode() >= 400) {
             throw new IOException("O SIMAM respondeu HTTP " + r.statusCode() + " em " + uri.getPath() + ".");
         }
