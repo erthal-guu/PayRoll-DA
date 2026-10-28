@@ -38,7 +38,9 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
     setResultado(null)
   }
 
-  const completo = filtros.length > 0 && filtros.every((f) => f.valor)
+  // só contam os campos que o SIMAM liberou e que têm opções; os outros não são exigidos
+  const exigidos = filtros.filter((f) => f.habilitado && f.opcoes.length > 0)
+  const completo = exigidos.length > 0 && exigidos.every((f) => f.valor)
   const rotulo = (chave) => filtros.find((f) => f.chave === chave)?.opcoes.find((o) => o.valor === selecao[chave])?.rotulo
 
   async function baixarExcel(r = resultado) {

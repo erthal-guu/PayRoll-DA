@@ -81,19 +81,14 @@ public class SimamClient {
         Sessao s = abrir();
         aplicar(s, selecao);
         for (Filtro f : lerFiltros(s.pagina)) {
-            if (f.valor() == null || f.valor().isBlank()) {
+            if (f.habilitado() && !f.opcoes().isEmpty() && (f.valor() == null || f.valor().isBlank())) {
                 throw new IllegalArgumentException("Escolha o filtro \"" + f.rotulo() + "\" antes de consultar.");
             }
         }
-        Element botao = s.pagina.selectFirst("a[id$=btnConsulta]");
-        Matcher m = botao == null ? null : BOTAO.matcher(botao.outerHtml());
-        if (m == null || !m.find()) {
-            throw new IOException("Não encontrei o botão Consultar na página do SIMAM (o layout pode ter mudado).");
-        }
-        String alvo = m.group(1) != null ? m.group(1) : m.group(2);
         Map<String, String> campos = campos(s.pagina);
-        campos.put("__EVENTTARGET", alvo);
-        campos.put("__EVENTARGUMENT", "");
+        if (!clicarConsultar(s.pagina, campos)) {
+            throw new IOException(diagnosticar(s, "não encontrei o botão Consultar na página do SIMAM (o layout pode ter mudado)"));
+        }
         postar(s, campos);
 
         String html = s.pagina.outerHtml();
@@ -110,6 +105,39 @@ public class SimamClient {
         URI exportacao = s.url.resolve(base + "CSV");
         Thread.sleep(espera.toMillis());
         return new Retorno(html, get(s, exportacao), exportacao.toString());
+    }
+
+    private static final Pattern DO_POSTBACK = Pattern.compile("__doPostBack\\(\\s*['\"]([^'\"]+)['\"]");
+
+    /**
+     * Prepara os campos do clique em Consultar. O botão pode ser um link com postback (WebForm_PostBackOptions ou
+     * __doPostBack) ou um input/button de envio; procura pelo id e, se não achar, pelo texto "Consultar".
+     */
+    private static boolean clicarConsultar(Document pagina, Map<String, String> campos) {
+        Element botao = pagina.selectFirst("[id*=btnConsulta], [id*=btnConsultar], [name*=btnConsulta]");
+        if (botao == null) {
+            botao = pagina.select("a, button, input[type=submit], input[type=button]").stream()
+                    .filter(e -> (e.text() + " " + e.attr("value")).toLowerCase(Locale.ROOT).contains("consultar"))
+                    .findFirst().orElse(null);
+        }
+        if (botao == null) {
+            return false;
+        }
+        String html = botao.outerHtml();
+        Matcher m = BOTAO.matcher(html);
+        Matcher p = DO_POSTBACK.matcher(html);
+        if (m.find()) {
+            campos.put("__EVENTTARGET", m.group(1) != null ? m.group(1) : m.group(2));
+        } else if (p.find()) {
+            campos.put("__EVENTTARGET", p.group(1));
+        } else if (botao.hasAttr("name")) {
+            campos.put("__EVENTTARGET", "");
+            campos.put(botao.attr("name"), botao.hasAttr("value") ? botao.attr("value") : "Consultar");
+        } else {
+            return false;
+        }
+        campos.put("__EVENTARGUMENT", "");
+        return true;
     }
 
     private static String exportBase(String html) {
@@ -251,9 +279,14 @@ public class SimamClient {
             form = pagina.select("form").stream().filter(f -> f instanceof FormElement).map(f -> (FormElement) f).findFirst()
                     .orElseThrow(() -> new IllegalStateException("Formulário não encontrado na página do SIMAM."));
         }
+        // botões não entram: no ASP.NET, mandar o nome de um botão é o mesmo que clicar nele
+        java.util.Set<String> botoes = new java.util.HashSet<>();
+        form.select("input[type=submit], input[type=image], input[type=button], button").forEach(b -> botoes.add(b.attr("name")));
         Map<String, String> m = new LinkedHashMap<>();
         for (Connection.KeyVal kv : form.formData()) {
-            m.put(kv.key(), kv.value());
+            if (!botoes.contains(kv.key())) {
+                m.put(kv.key(), kv.value());
+            }
         }
         return m;
     }
