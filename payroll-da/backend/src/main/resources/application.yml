@@ -5,11 +5,14 @@ spring:
   application:
     name: payroll-da
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/payroll_da}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/PayRoll-DA}
     username: ${DB_USER:payroll}
     password: ${DB_PASSWORD:payroll}
   flyway:
     enabled: true
+    # Banco criado pelos scripts de banco/ (tabelas já existem): começa a partir da versão 2.
+    baseline-on-migrate: true
+    baseline-version: 2
   servlet:
     multipart:
       max-file-size: 200MB

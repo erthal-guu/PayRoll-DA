@@ -8,6 +8,7 @@ e mostra um dashboard interativo com a situação de cada prefeitura e câmara f
 payroll-da/
 ├── backend/    Java 21 + Spring Boot 3.3 + Flyway + PostgreSQL
 ├── frontend/   React 18 + Vite + Recharts
+├── banco/      scripts SQL para criar o banco local PayRoll-DA
 └── dados/      exemplo_despesa_pessoal.csv (dados fictícios para testar a importação)
 ```
 
@@ -15,11 +16,18 @@ payroll-da/
 
 Precisa de Java 21, Maven, Node.js e PostgreSQL instalados na máquina.
 
-1. Crie no PostgreSQL o banco `payroll_da` com usuário e senha `payroll`:
+1. Crie o banco `PayRoll-DA` no PostgreSQL com os scripts da pasta `banco/` (no pgAdmin, abra cada arquivo no Query Tool):
 
-```sql
-CREATE USER payroll WITH PASSWORD 'payroll';
-CREATE DATABASE payroll_da OWNER payroll;
+| Script | Onde rodar | O que faz |
+|---|---|---|
+| `01_criar_banco.sql` | banco `postgres`, como superusuário | cria o usuário `payroll` (senha `payroll`) e o banco `PayRoll-DA` |
+| `02_criar_tabelas.sql` | banco `PayRoll-DA`, usuário `payroll` | cria as tabelas (opcional: o backend cria sozinho se o banco estiver vazio) |
+| `03_dados_exemplo.sql` | banco `PayRoll-DA`, usuário `payroll` | carrega 1.200 registros fictícios para o painel não abrir vazio (opcional) |
+
+```bash
+psql -U postgres -f banco/01_criar_banco.sql
+psql -U payroll -d PayRoll-DA -f banco/02_criar_tabelas.sql
+psql -U payroll -d PayRoll-DA -f banco/03_dados_exemplo.sql
 ```
 
 2. Em um terminal, suba a API (o Flyway cria as tabelas na primeira vez):
