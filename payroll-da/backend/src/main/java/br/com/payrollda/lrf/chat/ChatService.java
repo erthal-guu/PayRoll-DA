@@ -57,7 +57,8 @@ public class ChatService {
     private final ObjectMapper json;
     private final RestClient http;
     private final String apiKey;
-    private final String modelo;
+    private final String url;
+    private volatile String modelo;
     private final int maxTokens;
 
     public ChatService(DashboardRepository repo, ObjectMapper json,
@@ -70,7 +71,8 @@ public class ChatService {
         this.apiKey = apiKey;
         this.modelo = modelo;
         this.maxTokens = maxTokens;
-        this.http = RestClient.builder().baseUrl(url).build();
+        this.url = url;
+        this.http = RestClient.create();
     }
 
     public record Mensagem(String papel, String texto) {
@@ -145,6 +147,22 @@ public class ChatService {
     }
 
     private JsonNode chamarApi(List<Map<String, Object>> mensagens) {
+        try {
+            return enviar(mensagens);
+        } catch (RestClientResponseException e) {
+            // o Groq aposenta modelos de tempos em tempos; se o configurado sumiu, troca por um disponível e tenta de novo
+            if (e.getStatusCode().value() == 404 && trocarModelo()) {
+                try {
+                    return enviar(mensagens);
+                } catch (RestClientResponseException e2) {
+                    throw falha(e2);
+                }
+            }
+            throw falha(e);
+        }
+    }
+
+    private JsonNode enviar(List<Map<String, Object>> mensagens) {
         Map<String, Object> corpo = Map.of(
                 "model", modelo,
                 "max_tokens", maxTokens,
@@ -153,6 +171,7 @@ public class ChatService {
                 "messages", mensagens);
         try {
             String resp = http.post()
+                    .uri(url)
                     .contentType(MediaType.APPLICATION_JSON)
                     .header("Authorization", "Bearer " + apiKey)
                     .body(corpo)
@@ -160,11 +179,50 @@ public class ChatService {
                     .body(String.class);
             return json.readTree(resp);
         } catch (RestClientResponseException e) {
-            log.warn("API do Groq respondeu {}: {}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new IllegalStateException("O assistente está indisponível agora (HTTP " + e.getStatusCode().value() + ").");
+            throw e;
         } catch (Exception e) {
             throw new IllegalStateException("Não foi possível falar com o assistente: " + e.getMessage(), e);
         }
+    }
+
+    /** Escolhe outro modelo de chat na lista do Groq. Devolve false se não achou um diferente do atual. */
+    private boolean trocarModelo() {
+        try {
+            String base = url.replaceFirst("/chat/completions/?$", "");
+            JsonNode lista = json.readTree(http.get().uri(base + "/models")
+                    .header("Authorization", "Bearer " + apiKey).retrieve().body(String.class)).path("data");
+            List<String> ids = new ArrayList<>();
+            lista.forEach(m -> ids.add(m.path("id").asText()));
+            String novo = null;
+            for (String preferido : List.of("llama-3.3", "gpt-oss-120b", "llama", "gpt-oss", "qwen", "kimi")) {
+                novo = ids.stream().filter(id -> id.contains(preferido) && !id.contains("guard") && !id.contains("whisper")
+                        && !id.contains("tts")).findFirst().orElse(null);
+                if (novo != null) {
+                    break;
+                }
+            }
+            if (novo == null || novo.equals(modelo)) {
+                return false;
+            }
+            log.warn("Modelo {} não encontrado no Groq; usando {}. Defina GROQ_MODELO para fixar outro.", modelo, novo);
+            modelo = novo;
+            return true;
+        } catch (Exception e) {
+            log.warn("Não consegui listar os modelos do Groq: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    private IllegalStateException falha(RestClientResponseException e) {
+        log.warn("API do Groq respondeu {}: {}", e.getStatusCode(), e.getResponseBodyAsString());
+        String detalhe = "";
+        try {
+            detalhe = json.readTree(e.getResponseBodyAsString()).path("error").path("message").asText("");
+        } catch (Exception ignorado) {
+            // corpo sem JSON
+        }
+        return new IllegalStateException("O assistente está indisponível agora (HTTP " + e.getStatusCode().value() + ")"
+                + (detalhe.isBlank() ? "." : ": " + detalhe));
     }
 
     private String executarFerramenta(String nome, JsonNode in, List<Sugestao> sugestoes) throws Exception {
