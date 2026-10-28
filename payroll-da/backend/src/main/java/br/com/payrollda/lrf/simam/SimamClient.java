@@ -38,6 +38,10 @@ public class SimamClient {
 
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(SimamClient.class);
 
+    /** O SIMAM pode montar a página de outro jeito para clientes que não parecem um navegador. */
+    private static final String NAVEGADOR = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            + "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+
     /** Tempo máximo de uma operação inteira (abrir + filtros + consultar + exportar). */
     private static final Duration LIMITE_TOTAL = Duration.ofSeconds(150);
     /** Tempo máximo de cada pedido ao SIMAM. */
@@ -360,7 +364,8 @@ public class SimamClient {
         HttpRequest req = HttpRequest.newBuilder(s.url).timeout(s.restante())
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .header("Referer", s.url.toString())
-                .header("User-Agent", "payroll-da/0.1 (consulta de relatorios LRF)")
+                .header("User-Agent", NAVEGADOR)
+                .header("Accept-Language", "pt-BR,pt;q=0.9")
                 .POST(HttpRequest.BodyPublishers.ofString(corpo.toString())).build();
         HttpResponse<String> r = enviar(s, req);
         if (r.statusCode() >= 400) {
@@ -384,7 +389,8 @@ public class SimamClient {
 
     private String get(Sessao s, URI uri) throws IOException, InterruptedException {
         HttpRequest req = HttpRequest.newBuilder(uri).timeout(s.restante())
-                .header("User-Agent", "payroll-da/0.1 (consulta de relatorios LRF)")
+                .header("User-Agent", NAVEGADOR)
+                .header("Accept-Language", "pt-BR,pt;q=0.9")
                 .header("Referer", s.url == null ? uri.toString() : s.url.toString()).GET().build();
         HttpResponse<String> r = enviar(s, req);
         if (r.statusCode() >= 400) {
