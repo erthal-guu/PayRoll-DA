@@ -6,7 +6,7 @@ import { FAIXAS, MESES, moedaCheia, pct } from '../formato.js'
 const ETAPAS = ['Abrindo o formulário do SIMAM (TCE-PR)', 'Aplicando os filtros e gerando o relatório', 'Importando para a base de dados']
 const CLASSE = { tipo: '', municipio: 'largo', entidade: 'inteiro', relatorio: 'inteiro' }
 
-export default function Consultar({ aoConsultar, verNoDashboard, perguntar }) {
+export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPara }) {
   const [selecao, setSelecao] = useState({})
   const [filtros, setFiltros] = useState([])
   const [carregandoFiltros, setCarregandoFiltros] = useState(true)
@@ -15,17 +15,19 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar }) {
   const [resultado, setResultado] = useState(null)
   const [erro, setErro] = useState(null)
   const [aviso, setAviso] = useState(null)
+  const [erroSimam, setErroSimam] = useState(null)
+  const [tentativa, setTentativa] = useState(0)
 
   // cada escolha pode liberar o próximo filtro no SIMAM, então a lista é relida a cada mudança
   useEffect(() => {
     let atual = true
     setCarregandoFiltros(true)
     api.simamFiltros(selecao)
-      .then((l) => { if (atual) { setFiltros(l); setErro(null) } })
-      .catch((e) => { if (atual) setErro(e.message) })
+      .then((l) => { if (atual) { setFiltros(l); setErroSimam(null) } })
+      .catch((e) => { if (atual) setErroSimam(e.message) })
       .finally(() => { if (atual) setCarregandoFiltros(false) })
     return () => { atual = false }
-  }, [selecao])
+  }, [selecao, tentativa])
 
   function escolher(chave, valor) {
     const ordem = filtros.map((f) => f.chave)
@@ -93,7 +95,22 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar }) {
       </div>
       {erro && <div className="erro">{erro}</div>}
 
+      {erroSimam && !filtros.length ? (
+        <div className="panel sem-simam">
+          <div className="panel-head"><h2>Não consegui abrir o SIMAM do TCE-PR</h2></div>
+          <p className="erro">{erroSimam}</p>
+          <p className="hint">A consulta automática acessa <code>simam.tce.pr.gov.br</code> a partir do backend. Confira se o computador
+            onde o backend roda tem internet, se o site do TCE-PR abre no navegador e se nenhum firewall ou proxy está bloqueando o Java.</p>
+          <div className="acoes-consulta">
+            <button className="btn" onClick={() => setTentativa((t) => t + 1)} disabled={carregandoFiltros}>
+              {carregandoFiltros ? 'Tentando…' : 'Tentar de novo'}
+            </button>
+            {irPara && <button className="btn ghost" onClick={() => irPara('importacao')}>Importar o CSV manualmente</button>}
+          </div>
+        </div>
+      ) : (
       <form className={`panel form-consulta ${carregandoFiltros ? 'carregando' : ''}`} onSubmit={consultar}>
+        {carregandoFiltros && !filtros.length && [0, 1, 2, 3].map((i) => <div key={i} className="campo esqueleto" />)}
         {filtros.map((f, i) => (
           <label key={f.chave} className={`campo ${CLASSE[f.chave] ?? ''}`} htmlFor={`c-${f.chave}`}>
             <span><b className="passo">{i + 1}</b>{f.rotulo}</span>
@@ -118,6 +135,7 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar }) {
           </ol>
         )}
       </form>
+      )}
 
       {resultado && (
         <div className="panel">

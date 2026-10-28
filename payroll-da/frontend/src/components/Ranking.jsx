@@ -5,7 +5,7 @@ export default function Ranking({ itens, selecionada, selecionar }) {
   const ESCALA = 110 // eixo vai até 110% do limite
   return (
     <div className="panel">
-      <div className="panel-head"><h2>Mais perto do limite</h2><p className="hint">Traço branco = limite máximo</p></div>
+      <div className="panel-head"><h2>Mais perto do limite</h2><p className="hint">O traço marca o limite máximo</p></div>
       {!itens?.length ? <div className="vazio">Nenhuma entidade no filtro atual.</div> : (
         <div className="ranking">
           {itens.map((e) => {

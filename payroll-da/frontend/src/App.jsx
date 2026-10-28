@@ -74,7 +74,7 @@ function Painel({ usuario, sair }) {
   const chave = JSON.stringify(filtros)
   const resumo = useCarregar(() => (pronto ? api.resumo(filtros) : null), [chave, versao])
   const faixas = useCarregar(() => api.evolucaoFaixas(filtros), [filtros.poder, filtros.codIbge, filtros.busca, versao])
-  const ranking = useCarregar(() => (pronto ? api.entidades(filtros, { ordem: 'usoLimite', direcao: 'desc', tamanho: 8 }) : null), [chave, versao])
+  const ranking = useCarregar(() => (pronto ? api.entidades(filtros, { ordem: 'usoLimite', direcao: 'desc', tamanho: 6 }) : null), [chave, versao])
   const tabela = useCarregar(
     () => (pronto ? api.entidades(filtros, { ordem: ordem.campo, direcao: ordem.direcao, pagina, tamanho: 12 }) : null),
     [chave, ordem.campo, ordem.direcao, pagina, versao])
@@ -132,8 +132,9 @@ function Painel({ usuario, sair }) {
       </aside>
 
       <main>
+        <div className="tela" key={tela}>
         {tela === 'consultar' ? (
-          <Consultar aoConsultar={() => setVersao((v) => v + 1)} verNoDashboard={verNoDashboard}
+          <Consultar aoConsultar={() => setVersao((v) => v + 1)} verNoDashboard={verNoDashboard} irPara={irPara}
             perguntar={(texto) => setPedidoChat({ texto, em: Date.now() })} />
         ) : tela === 'importacao' ? (
           <Importacao aoImportar={() => setVersao((v) => v + 1)} />
@@ -184,6 +185,7 @@ function Painel({ usuario, sair }) {
             )}
           </>
         )}
+        </div>
       </main>
       <Assistente pedido={pedidoChat} aplicar={aplicarSugestao}
         contexto={{ tela, filtros, entidadeId: selecionada?.entidadeId ?? null }} />

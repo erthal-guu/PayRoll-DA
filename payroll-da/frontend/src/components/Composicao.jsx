@@ -17,15 +17,21 @@ export default function Composicao({ resumo }) {
       <div style={{ display: 'flex', height: 14, borderRadius: 7, overflow: 'hidden', background: 'var(--line)' }}>
         {PARTES.map(([k, , cor]) => <div key={k} style={{ width: `${total ? (c[k] / total) * 100 : 0}%`, background: cor }} />)}
       </div>
-      <ul className="legenda" style={{ marginTop: 12 }}>
-        {PARTES.map(([k, nome, cor]) => (
-          <li key={k} style={{ display: 'grid', gridTemplateColumns: '12px 1fr auto auto', gap: 10, alignItems: 'center', padding: '4px 8px', fontSize: 14 }}>
-            <span className="cor" style={{ background: cor }} />
-            <span>{nome}</span>
-            <span style={{ fontFamily: 'var(--f-num)' }}>{moeda(c[k])}</span>
-            <span className="hint" style={{ width: 56, textAlign: 'right' }}>{pct(total ? (c[k] / total) * 100 : 0, 1)}</span>
-          </li>
-        ))}
+      <ul className="composicao">
+        {PARTES.map(([k, nome, cor]) => {
+          const parte = total ? (c[k] / total) * 100 : 0
+          return (
+            <li key={k}>
+              <div className="composicao-linha">
+                <span className="cor" style={{ background: cor }} />
+                <span>{nome}</span>
+                <span className="composicao-valor">{moeda(c[k])}</span>
+                <span className="hint composicao-pct">{pct(parte, 1)}</span>
+              </div>
+              <div className="trilho"><span style={{ width: `${parte}%`, background: cor }} /></div>
+            </li>
+          )
+        })}
       </ul>
     </div>
   )
