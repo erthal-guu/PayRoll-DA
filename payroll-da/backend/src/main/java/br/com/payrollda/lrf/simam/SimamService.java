@@ -67,7 +67,9 @@ public class SimamService {
         if (linha == null) {
             Path pasta = salvarDiagnostico(r);
             long id = importacoes.criar("SIMAM", resumo(selecao));
-            String msg = "O SIMAM respondeu, mas não consegui ler o relatório (" + motivo + "). Amostras salvas em " + pasta + ".";
+            String msg = "O SIMAM respondeu, mas não consegui ler o relatório (" + motivo + "). "
+                    + (r.csv() == null ? "O SIMAM não ofereceu o CSV. " : "")
+                    + "Texto da página recebida: \"" + textoDaPagina(r.htmlVisualizacao()) + "\". Amostras salvas em " + pasta + ".";
             importacoes.finalizar(id, "FALHOU", 0, 0, 0, msg);
             return new Resposta(importacoes.buscar(id).orElseThrow(), null, null, msg);
         }
@@ -77,6 +79,18 @@ public class SimamService {
         var d = dashboard.demonstrativo(entidadeId, linha.ano(), linha.mes()).orElse(null);
         String excel = d == null ? null : "/api/consultas/excel?entidadeId=" + entidadeId + "&ano=" + linha.ano() + "&mes=" + linha.mes();
         return new Resposta(dto, d, excel, d != null ? "Consulta concluída." : "Importado, mas sem demonstrativo para o período.");
+    }
+
+    /** Título e começo do texto visível da página, para o erro mostrar o que o SIMAM disse (ex.: "relatório não gerado"). */
+    private static String textoDaPagina(String html) {
+        try {
+            var doc = org.jsoup.Jsoup.parse(html == null ? "" : html);
+            doc.select("script, style").remove();
+            String t = (doc.title() + " | " + doc.body().text()).replaceAll("\\s+", " ").trim();
+            return t.length() > 400 ? t.substring(0, 400) + "…" : t;
+        } catch (RuntimeException e) {
+            return "(não consegui extrair o texto)";
+        }
     }
 
     private static String resumo(Map<String, String> selecao) {

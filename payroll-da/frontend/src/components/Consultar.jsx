@@ -6,6 +6,10 @@ import { FAIXAS, MESES, moedaCheia, pct } from '../formato.js'
 const ETAPAS = ['Abrindo o formulário do SIMAM (TCE-PR)', 'Aplicando os filtros e gerando o relatório', 'Importando para a base de dados']
 const CLASSE = { tipo: '', municipio: 'largo', entidade: 'inteiro', relatorio: 'inteiro' }
 
+const sem = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+// o sistema só sabe ler o Demonstrativo da Despesa com Pessoal; os outros relatórios do SIMAM não são mostrados
+const relatorioAceito = (o) => sem(o.rotulo).includes('despesa com pessoal')
+
 export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPara }) {
   const [selecao, setSelecao] = useState({})
   const [filtros, setFiltros] = useState([])
@@ -131,7 +135,7 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
       )}
       <form className={`panel form-consulta ${carregandoFiltros ? 'carregando' : ''}`} onSubmit={consultar}>
         {carregandoFiltros && !filtros.length && [0, 1, 2, 3].map((i) => <div key={i} className="campo esqueleto" />)}
-        {filtros.map((f, i) => (
+        {filtros.map((f, i) => ({ ...f, opcoes: f.chave === 'relatorio' && f.opcoes.some(relatorioAceito) ? f.opcoes.filter(relatorioAceito) : f.opcoes })).map((f, i) => (
           <label key={f.chave} className={`campo ${CLASSE[f.chave] ?? ''}`} htmlFor={`c-${f.chave}`}>
             <span><b className="passo">{i + 1}</b>{f.rotulo}</span>
             <select id={`c-${f.chave}`} value={f.valor} disabled={!f.habilitado || etapa >= 0}
@@ -141,6 +145,9 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
             </select>
           </label>
         ))}
+        {filtros.some((f) => f.chave === 'relatorio' && f.opcoes.some(relatorioAceito)) && (
+          <div className="inteiro hint">Só aparece o relatório que o sistema sabe ler: o Demonstrativo da Despesa com Pessoal (RGF).</div>
+        )}
         <div className="inteiro acoes-consulta">
           <button className="btn" type="submit" disabled={etapa >= 0 || !completo}>{etapa >= 0 ? 'Consultando…' : 'Consultar e importar'}</button>
           <label className="check" htmlFor="c-auto">

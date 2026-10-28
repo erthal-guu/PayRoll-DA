@@ -44,7 +44,8 @@ public final class RelatorioRgfParser {
 
     /** Reconhece pelo texto se o conteúdo é o demonstrativo do SIMAM (sem tentar ler tudo). */
     public static boolean pareceRelatorioRgf(String texto) {
-        return sem(texto).contains("DEMONSTRATIVO DA DESPESA COM PESSOAL");
+        String t = sem(texto);
+        return t.contains("DESPESA COM PESSOAL") && (t.contains("DEMONSTRATIVO") || t.contains("RELATORIO DE GESTAO FISCAL"));
     }
 
     public static LinhaDespesa deHtml(String html, String codIbge) {
@@ -101,8 +102,11 @@ public final class RelatorioRgfParser {
     }
 
     static LinhaDespesa ler(List<List<String>> linhas, List<String> todas, String codIbge) {
-        if (todas.stream().noneMatch(t -> sem(t).contains("DEMONSTRATIVO DA DESPESA COM PESSOAL"))) {
-            throw new RelatorioInvalidoException("O relatório recebido não é o Demonstrativo da Despesa com Pessoal (RGF - Anexo 1).");
+        String tudo = sem(String.join(" ", todas));
+        // o título pode vir partido em várias células; basta aparecer a despesa com pessoal e o relatório de gestão fiscal
+        if (!tudo.contains("DESPESA COM PESSOAL") || !(tudo.contains("DEMONSTRATIVO") || tudo.contains("RELATORIO DE GESTAO FISCAL"))) {
+            throw new RelatorioInvalidoException("O relatório recebido não é o Demonstrativo da Despesa com Pessoal (RGF - Anexo 1). "
+                    + "O SIMAM devolveu: \"" + previa(todas) + "\".");
         }
         String entidade = nomeDaEntidade(todas);
         Matcher m = Pattern.compile("(?i)munic[ií]pal\\s+de\\s+(.+)$").matcher(entidade);
@@ -137,6 +141,12 @@ public final class RelatorioRgfParser {
 
         return new LinhaDespesa(codigo(codIbge, municipio), municipio, titulo(entidade), poder, ano, mes,
                 bruta, ativo, inativos, outras, naoComputadas, dtp, rcl);
+    }
+
+    /** Começo do texto recebido, para o erro mostrar o que o SIMAM realmente devolveu. */
+    static String previa(List<String> textos) {
+        String t = limpar(String.join(" | ", textos.stream().filter(x -> !x.isBlank()).limit(25).toList()));
+        return t.isEmpty() ? "(vazio)" : t.length() > 300 ? t.substring(0, 300) + "…" : t;
     }
 
     /** O nome vem logo antes do título "RELATÓRIO DE GESTÃO FISCAL", na mesma célula (HTML) ou na anterior (CSV). */
