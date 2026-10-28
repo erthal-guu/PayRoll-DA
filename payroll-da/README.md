@@ -97,10 +97,10 @@ Ao clicar em Consultar:
 3. A planilha é gerada (`GET /api/consultas/excel`, Apache POI) com as abas **Demonstrativo** e **Evolução** e baixada
    automaticamente, se a opção estiver marcada.
 
-## Assistente IA (Claude)
+## Assistente IA (Groq)
 
 `POST /api/chat` recebe a conversa e o contexto da tela (filtros e entidade aberta). O `ChatService` chama a
-API de Mensagens da Anthropic com quatro ferramentas, executadas no servidor sobre as mesmas consultas do dashboard:
+API do Groq (compatível com OpenAI, modelo `llama-3.3-70b-versatile`) com quatro ferramentas, executadas no servidor sobre as mesmas consultas do dashboard:
 
 | Ferramenta | Para quê |
 |---|---|
@@ -112,9 +112,9 @@ API de Mensagens da Anthropic com quatro ferramentas, executadas no servidor sob
 As instruções do assistente trazem as regras da LRF (limites, alerta, prudencial, vedações do art. 22 e medidas do
 art. 23) e proíbem inventar números. Configure no servidor:
 
-```bash
-export ANTHROPIC_API_KEY=sk-ant-...      # nunca vai para o front
-export ANTHROPIC_MODELO=claude-sonnet-5-5   # opcional
+```powershell
+$env:GROQ_API_KEY = "gsk_..."                  # nunca vai para o front nem para o git
+$env:GROQ_MODELO = "llama-3.3-70b-versatile"   # opcional
 ```
 
 ## API do dashboard

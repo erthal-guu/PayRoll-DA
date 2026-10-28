@@ -19,8 +19,8 @@ import br.com.payrollda.lrf.dashboard.DashboardRepository;
 import br.com.payrollda.lrf.dashboard.Filtro;
 
 /**
- * Assistente do painel usando a API de Mensagens da Anthropic com ferramentas:
- * o Claude consulta o banco pelas mesmas consultas do dashboard (nunca inventa números)
+ * Assistente do painel usando o Groq (API compatível com OpenAI) com ferramentas:
+ * o modelo consulta o banco pelas mesmas consultas do dashboard (nunca inventa números)
  * e devolve sugestões de ajuste que o usuário aplica com um clique no front.
  */
 @Service
@@ -61,10 +61,10 @@ public class ChatService {
     private final int maxTokens;
 
     public ChatService(DashboardRepository repo, ObjectMapper json,
-                       @Value("${anthropic.api-key:}") String apiKey,
-                       @Value("${anthropic.modelo:claude-sonnet-5-5}") String modelo,
-                       @Value("${anthropic.max-tokens:1500}") int maxTokens,
-                       @Value("${anthropic.url:https://api.anthropic.com/v1/messages}") String url) {
+                       @Value("${groq.api-key:}") String apiKey,
+                       @Value("${groq.modelo:llama-3.3-70b-versatile}") String modelo,
+                       @Value("${groq.max-tokens:1500}") int maxTokens,
+                       @Value("${groq.url:https://api.groq.com/openai/v1/chat/completions}") String url) {
         this.repo = repo;
         this.json = json;
         this.apiKey = apiKey;
@@ -87,40 +87,36 @@ public class ChatService {
 
     public Resposta conversar(List<Mensagem> historico, Contexto contexto) {
         if (apiKey == null || apiKey.isBlank()) {
-            throw new IllegalStateException("O assistente não está configurado. Defina ANTHROPIC_API_KEY no servidor.");
+            throw new IllegalStateException("O assistente não está configurado. Defina GROQ_API_KEY no servidor.");
         }
         List<Map<String, Object>> mensagens = montarMensagens(historico, contexto);
         List<Sugestao> sugestoes = new ArrayList<>();
         StringBuilder texto = new StringBuilder();
 
         for (int rodada = 0; rodada < MAX_RODADAS; rodada++) {
-            JsonNode resp = chamarApi(mensagens);
-            List<Map<String, Object>> resultados = new ArrayList<>();
-            for (JsonNode bloco : resp.path("content")) {
-                String tipo = bloco.path("type").asText();
-                if ("text".equals(tipo)) {
-                    if (!texto.isEmpty()) {
-                        texto.append("\n\n");
-                    }
-                    texto.append(bloco.path("text").asText());
-                } else if ("tool_use".equals(tipo)) {
-                    String saida;
-                    boolean erro = false;
-                    try {
-                        saida = executarFerramenta(bloco.path("name").asText(), bloco.path("input"), sugestoes);
-                    } catch (Exception e) {
-                        saida = "Erro: " + e.getMessage();
-                        erro = true;
-                    }
-                    resultados.add(Map.of("type", "tool_result", "tool_use_id", bloco.path("id").asText(),
-                            "content", saida, "is_error", erro));
+            JsonNode msg = chamarApi(mensagens).path("choices").path(0).path("message");
+            String conteudo = msg.path("content").asText("");
+            if (!conteudo.isBlank()) {
+                if (!texto.isEmpty()) {
+                    texto.append("\n\n");
                 }
+                texto.append(conteudo.trim());
             }
-            if (!"tool_use".equals(resp.path("stop_reason").asText()) || resultados.isEmpty()) {
+            JsonNode chamadas = msg.path("tool_calls");
+            if (!chamadas.isArray() || chamadas.isEmpty()) {
                 break;
             }
-            mensagens.add(Map.of("role", "assistant", "content", json.convertValue(resp.path("content"), List.class)));
-            mensagens.add(Map.of("role", "user", "content", resultados));
+            mensagens.add(json.convertValue(msg, Map.class));
+            for (JsonNode chamada : chamadas) {
+                String saida;
+                try {
+                    JsonNode args = json.readTree(chamada.path("function").path("arguments").asText("{}"));
+                    saida = executarFerramenta(chamada.path("function").path("name").asText(), args, sugestoes);
+                } catch (Exception e) {
+                    saida = "Erro: " + e.getMessage();
+                }
+                mensagens.add(Map.of("role", "tool", "tool_call_id", chamada.path("id").asText(), "content", saida));
+            }
         }
         String final_ = texto.isEmpty() ? "Pronto. Veja as sugestões abaixo." : texto.toString();
         return new Resposta(final_, sugestoes);
@@ -128,6 +124,7 @@ public class ChatService {
 
     private List<Map<String, Object>> montarMensagens(List<Mensagem> historico, Contexto contexto) {
         List<Map<String, Object>> msgs = new ArrayList<>();
+        msgs.add(Map.of("role", "system", "content", INSTRUCOES));
         // mantém só as últimas 12 mensagens para controlar custo
         List<Mensagem> recentes = historico.subList(Math.max(0, historico.size() - 12), historico.size());
         for (int i = 0; i < recentes.size(); i++) {
@@ -141,7 +138,7 @@ public class ChatService {
             }
             msgs.add(Map.of("role", papel, "content", conteudo));
         }
-        if (msgs.isEmpty() || !"user".equals(msgs.get(0).get("role"))) {
+        if (msgs.size() < 2 || !"user".equals(msgs.get(1).get("role"))) {
             throw new IllegalArgumentException("A conversa deve começar com uma mensagem do usuário.");
         }
         return msgs;
@@ -151,20 +148,19 @@ public class ChatService {
         Map<String, Object> corpo = Map.of(
                 "model", modelo,
                 "max_tokens", maxTokens,
-                "system", INSTRUCOES,
+                "temperature", 0.3,
                 "tools", Ferramentas.DEFINICOES,
                 "messages", mensagens);
         try {
             String resp = http.post()
                     .contentType(MediaType.APPLICATION_JSON)
-                    .header("x-api-key", apiKey)
-                    .header("anthropic-version", "2023-06-01")
+                    .header("Authorization", "Bearer " + apiKey)
                     .body(corpo)
                     .retrieve()
                     .body(String.class);
             return json.readTree(resp);
         } catch (RestClientResponseException e) {
-            log.warn("API da Anthropic respondeu {}: {}", e.getStatusCode(), e.getResponseBodyAsString());
+            log.warn("API do Groq respondeu {}: {}", e.getStatusCode(), e.getResponseBodyAsString());
             throw new IllegalStateException("O assistente está indisponível agora (HTTP " + e.getStatusCode().value() + ").");
         } catch (Exception e) {
             throw new IllegalStateException("Não foi possível falar com o assistente: " + e.getMessage(), e);

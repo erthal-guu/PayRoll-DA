@@ -73,8 +73,8 @@ tce:
     origens-permitidas: ${CORS_ORIGENS:http://localhost:5173}
 
 # Chatbot. A chave fica só no servidor (variável de ambiente), nunca no front.
-anthropic:
-  api-key: ${ANTHROPIC_API_KEY:}
-  modelo: ${ANTHROPIC_MODELO:claude-sonnet-5-5}
+groq:
+  api-key: ${GROQ_API_KEY:}
+  modelo: ${GROQ_MODELO:llama-3.3-70b-versatile}
   max-tokens: 1500
-  url: https://api.anthropic.com/v1/messages
+  url: https://api.groq.com/openai/v1/chat/completions
