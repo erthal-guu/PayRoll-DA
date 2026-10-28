@@ -14,7 +14,7 @@ payroll-da/
 
 ## 1. Rodar o projeto (banco + API + painel)
 
-Precisa de Java 21, Maven, Node.js e PostgreSQL instalados na máquina.
+Precisa de Java 21, Node.js e PostgreSQL instalados na máquina. O Maven não precisa: o backend traz o `mvnw`, que baixa o Maven sozinho.
 
 1. Crie o banco `PayRoll-DA` no PostgreSQL com os scripts da pasta `banco/` (no pgAdmin, abra cada arquivo no Query Tool):
 
@@ -34,7 +34,7 @@ psql -U payroll -d PayRoll-DA -f banco/03_dados_exemplo.sql
 
 ```bash
 cd backend
-mvn spring-boot:run          # API em http://localhost:8080
+./mvnw spring-boot:run       # Windows: .\mvnw.cmd spring-boot:run · API em http://localhost:8080
 ```
 
 3. Em outro terminal, suba o painel:
@@ -45,7 +45,7 @@ npm install
 npm run dev                  # painel em http://localhost:5173
 ```
 
-Outro banco ou outra senha: use as variáveis `DB_URL`, `DB_USER` e `DB_PASSWORD` antes do `mvn spring-boot:run`.
+Outro banco ou outra senha: use as variáveis `DB_URL`, `DB_USER` e `DB_PASSWORD` antes do `mvnw spring-boot:run`.
 
 **Login.** Na primeira subida, sem nenhum usuário no banco, o backend cria o administrador
 `admin@payroll.local` com senha `admin` (mude com `ADMIN_EMAIL` e `ADMIN_SENHA`). Entre com ele e troque a senha na tela **Usuários**.
