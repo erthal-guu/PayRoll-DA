@@ -30,7 +30,7 @@ export default function Kpis({ resumo }) {
   const itens = [
     { rotulo: 'Entidades analisadas', valor: resumo.entidades, formatar: inteiro, det: 'prefeituras e câmaras no filtro', icone: 'entidades', cor: '#3b5bfd' },
     { rotulo: 'Despesa total com pessoal', valor: Number(resumo.despesaTotal), formatar: moeda, det: 'soma dos últimos 12 meses', icone: 'despesa', cor: '#7c4dff' },
-    { rotulo: 'Uso médio do limite', valor: Number(resumo.usoMedioLimite), formatar: (n) => pct(n, 1), det: '100% = limite máximo da LRF', icone: 'uso', cor: '#12b981', barra: Number(resumo.usoMedioLimite) },
+    { rotulo: 'Uso médio do limite', valor: Number(resumo.usoMedioLimite), formatar: (n) => (Number(resumo.rclTotal) > 0 ? pct(n, 1) : '—'), det: Number(resumo.rclTotal) > 0 ? '100% = limite máximo da LRF' : 'sem a RCL não há como calcular', icone: 'uso', cor: '#12b981', barra: Number(resumo.usoMedioLimite) },
     { rotulo: 'Acima do prudencial', valor: fora, formatar: inteiro, det: `${resumo.faixas.ACIMA_LIMITE} acima do limite máximo`, icone: 'alerta', perigo: fora > 0, cor: fora > 0 ? '#ef4444' : '#f5a524',
       barra: resumo.entidades ? (fora / resumo.entidades) * 100 : 0 },
   ]
