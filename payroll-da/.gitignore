@@ -4,3 +4,4 @@ frontend/dist/
 *.log
 .idea/
 .vscode/
+.env

@@ -1,0 +1,17 @@
+# {$DOMINIO} = seu domínio (HTTPS automático) ou :80 para testar sem domínio.
+{$DOMINIO} {
+	encode gzip
+	# O SIMAM pode demorar até ~2,5 min para responder.
+	handle /api/* {
+		reverse_proxy api:8080 {
+			transport http {
+				response_header_timeout 200s
+			}
+		}
+	}
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

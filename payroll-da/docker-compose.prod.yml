@@ -1,0 +1,52 @@
+# Produção: banco + API + site com HTTPS automático.
+#   cp .env.example .env   (preencha)   e depois:   docker compose -f docker-compose.prod.yml up -d --build
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: PayRoll-DA
+      POSTGRES_USER: payroll
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD no .env}
+    volumes:
+      - dados-banco:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payroll -d PayRoll-DA"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/PayRoll-DA
+      DB_USER: payroll
+      DB_PASSWORD: ${DB_PASSWORD}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?defina ADMIN_EMAIL no .env}
+      ADMIN_SENHA: ${ADMIN_SENHA:?defina ADMIN_SENHA no .env}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODELO: ${GROQ_MODELO:-llama-3.3-70b-versatile}
+      CORS_ORIGENS: https://${DOMINIO}
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: https://${DOMINIO}
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      DOMINIO: ${DOMINIO:?defina DOMINIO no .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy-dados:/data
+
+volumes:
+  dados-banco:
+  caddy-dados:
