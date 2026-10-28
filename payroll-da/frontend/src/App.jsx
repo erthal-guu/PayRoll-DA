@@ -102,9 +102,7 @@ export default function App() {
           ))}
         </nav>
         <div className="side-foot">
-          {api.modo === 'mock'
-            ? <><span className="tag">Dados de exemplo</span><br />Valores fictícios gerados no navegador para testar o painel.</>
-            : <>Dados importados do TCE-PR via API.</>}
+          Dados importados do TCE-PR via API.
         </div>
       </aside>
 

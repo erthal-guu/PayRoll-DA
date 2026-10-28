@@ -27,19 +27,7 @@ Precisa apenas do Docker (Docker Desktop no Windows). Maven, Java, Node e Postgr
 
 Prévia das telas em `docs/telas/`.
 
-## 1. Rodar só o front com dados mockados (nada além do Node)
-
-```bash
-cd frontend
-npm install
-npm run dev          # abre em http://localhost:5173
-```
-
-O arquivo `frontend/.env` vem com `VITE_USAR_MOCK=true`: os dados são gerados no navegador e a tela
-de importação lê o CSV de verdade (mesmas regras do backend), então dá para testar com
-`dados/exemplo_despesa_pessoal.csv`.
-
-## 2. Rodar tudo (banco + API + front)
+## 1. Rodar tudo (banco + API + front)
 
 Com Docker:
 
@@ -51,7 +39,7 @@ Sem Docker: suba um PostgreSQL com banco `payroll_da` (usuário e senha `payroll
 
 ```bash
 cd backend && mvn spring-boot:run          # API em http://localhost:8080 (Flyway cria as tabelas)
-cd frontend && VITE_USAR_MOCK=false npm run dev
+cd frontend && npm install && npm run dev   # painel em http://localhost:5173
 ```
 
 Para carregar dados: tela **Importação** do painel, ou
@@ -61,7 +49,7 @@ curl -F "arquivo=@dados/exemplo_despesa_pessoal.csv" http://localhost:8080/api/i
 curl http://localhost:8080/api/importacoes            # acompanha o status
 ```
 
-## 3. Integração com o TCE-PR (SIMAM)
+## 2. Integração com o TCE-PR (SIMAM)
 
 Há duas formas de trazer o Demonstrativo da Despesa com Pessoal (RGF - Anexo 1) para a base:
 
@@ -120,9 +108,6 @@ export ANTHROPIC_API_KEY=sk-ant-...      # nunca vai para o front
 export ANTHROPIC_MODELO=claude-sonnet-5-5   # opcional
 ```
 
-No modo mock, o assistente usa o Claude do próprio claude.ai quando a demo é aberta lá; rodando local sem backend,
-ele avisa que precisa da API.
-
 ## API do dashboard
 
 Todos aceitam `ano`, `mes`, `poder` (`EXECUTIVO`/`LEGISLATIVO`), `codIbge` e `busca`. Sem `ano`/`mes`, usa o período mais recente.
@@ -141,12 +126,11 @@ Todos aceitam `ano`, `mes`, `poder` (`EXECUTIVO`/`LEGISLATIVO`), `codIbge` e `bu
 | `POST /api/chat` | assistente: `{mensagens: [{papel, texto}], contexto}` → `{texto, sugestoes}` |
 | `GET /api/dashboard/evolucao-faixas` | entidades por faixa em cada período |
 
-O front (`frontend/src/api/mock.js`) implementa exatamente esses formatos, por isso a troca de mock para API
-é só mudar `VITE_USAR_MOCK`.
+O front chama esses endpoints em `frontend/src/api/http.js`. O endereço da API fica em `VITE_API_URL` (`frontend/.env`).
 
 ## O que foi verificado e o que falta
 
-- Front: build de produção, build da demo e teste em navegador simulado: filtros, faixa, detalhe, importação, Consultar com geração do Excel e assistente com ferramentas e sugestões aplicadas.
+- Front: build de produção. O painel depende do backend: sem a API no ar, as telas mostram erro de conexão.
 - SQL: migração e consultas do dashboard rodadas num PostgreSQL 16 com o CSV de exemplo (1.200 linhas), incluindo o upsert.
 - Backend Java: **não foi compilado** no ambiente onde foi escrito (sem acesso ao Maven Central). Rode `mvn test` na primeira vez;
   há testes do leitor de CSV em `CsvDespesaParserTest`.
