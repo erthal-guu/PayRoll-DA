@@ -8,39 +8,38 @@ e mostra um dashboard interativo com a situação de cada prefeitura e câmara f
 payroll-da/
 ├── backend/    Java 21 + Spring Boot 3.3 + Flyway + PostgreSQL
 ├── frontend/   React 18 + Vite + Recharts
-├── dados/      exemplo_despesa_pessoal.csv (dados fictícios para testar a importação)
-└── docker-compose.yml
+└── dados/      exemplo_despesa_pessoal.csv (dados fictícios para testar a importação)
 ```
 
-## 0. Rodar tudo só com Docker (sem instalar nada)
+## 1. Rodar o projeto (banco + API + painel)
 
-Precisa apenas do Docker (Docker Desktop no Windows). Maven, Java, Node e PostgreSQL rodam dentro dos containers.
+Precisa de Java 21, Maven, Node.js e PostgreSQL instalados na máquina.
+
+1. Crie no PostgreSQL o banco `payroll_da` com usuário e senha `payroll`:
+
+```sql
+CREATE USER payroll WITH PASSWORD 'payroll';
+CREATE DATABASE payroll_da OWNER payroll;
+```
+
+2. Em um terminal, suba a API (o Flyway cria as tabelas na primeira vez):
 
 ```bash
-./rodar.sh          # Windows: rodar.bat   (equivale a: docker compose up --build)
+cd backend
+mvn spring-boot:run          # API em http://localhost:8080
 ```
 
-- Painel: http://localhost:5173  ·  API: http://localhost:8080  ·  Banco: `localhost:5432` (payroll/payroll)
-- Na primeira vez demora (baixa imagens e compila). Depois: `docker compose up`.
-- Carregar dados: tela **Importação** ou `curl -F "arquivo=@dados/exemplo_despesa_pessoal.csv" http://localhost:8080/api/importacoes/upload`
-- Parar: `Ctrl+C`; apagar também o banco: `docker compose down -v`.
+3. Em outro terminal, suba o painel:
+
+```bash
+cd frontend
+npm install
+npm run dev                  # painel em http://localhost:5173
+```
+
+Outro banco ou outra senha: use as variáveis `DB_URL`, `DB_USER` e `DB_PASSWORD` antes do `mvn spring-boot:run`.
 
 Prévia das telas em `docs/telas/`.
-
-## 1. Rodar tudo (banco + API + front)
-
-Com Docker:
-
-```bash
-docker compose up --build
-```
-
-Sem Docker: suba um PostgreSQL com banco `payroll_da` (usuário e senha `payroll`), depois
-
-```bash
-cd backend && mvn spring-boot:run          # API em http://localhost:8080 (Flyway cria as tabelas)
-cd frontend && npm install && npm run dev   # painel em http://localhost:5173
-```
 
 Para carregar dados: tela **Importação** do painel, ou
 
@@ -72,7 +71,7 @@ não computadas, RCL ajustada, limite) e grava-se um registro por entidade e per
 >
 > **Não validado contra o site real** (o ambiente de desenvolvimento não alcança o SIMAM): o leitor do relatório foi testado
 > com uma página de visualização real e o cliente, com um servidor que simula o formulário ASP.NET. Se uma consulta falhar,
-> as amostras do que o SIMAM devolveu ficam em `tce.simam.diagnostico` (padrão `/tmp/simam-diagnostico`, dentro do container).
+> as amostras do que o SIMAM devolveu ficam em `tce.simam.diagnostico` (padrão `/tmp/simam-diagnostico`).
 
 Configuração: `tce.simam.url` (`TCE_SIMAM_URL`), `tce.simam.espera-ms`. O upload também aceita o CSV consolidado
 (colunas em `tce.importacao.colunas`) e há importação por URL de dados abertos (`POST /api/importacoes/url`).
