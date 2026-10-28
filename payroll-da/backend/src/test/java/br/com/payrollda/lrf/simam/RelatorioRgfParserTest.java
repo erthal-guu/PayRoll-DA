@@ -72,6 +72,7 @@ class RelatorioRgfParserTest {
                 + "x;DESPESAS NÃO COMPUTADAS (II);\"100,00\";y\n"
                 + "x;DESPESA TOTAL COM PESSOAL - DTP (III) = (I - II);\"900,00\";y\n"
                 + "x;RECEITA CORRENTE LÍQUIDA AJUSTADA (V);\"3.000,00\";y\n";
+        String semRcl = csv.substring(0, csv.lastIndexOf("x;RECEITA"));
         assertEquals(true, RelatorioRgfParser.ehCsvDados(csv));
         LinhaDespesa l = RelatorioRgfParser.deCsvDados(csv,
                 java.util.Map.of("entidade", "Câmara Municipal de Abatiá", "ano", "2019", "periodo", "Outubro", "municipio", "Abatiá"), "9");
@@ -79,5 +80,9 @@ class RelatorioRgfParserTest {
         assertEquals(0, new BigDecimal("900.00").compareTo(l.despesaTotal()));
         assertEquals(2019, l.ano());
         assertEquals(10, l.mes());
+        LinhaDespesa s = RelatorioRgfParser.deCsvDados(semRcl,
+                java.util.Map.of("entidade", "Prefeitura Municipal de Abatiá", "ano", "2015", "periodo", "Novembro"), "9");
+        assertEquals(0, BigDecimal.ZERO.compareTo(s.rclAjustada()));
+        assertEquals(0, new BigDecimal("900.00").compareTo(s.despesaTotal()));
     }
 }

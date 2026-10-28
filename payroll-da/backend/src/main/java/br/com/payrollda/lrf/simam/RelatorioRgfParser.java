@@ -154,7 +154,8 @@ public final class RelatorioRgfParser {
         BigDecimal outras = itemOuZero(itens, "OUTRAS DESPESAS DE PESSOAL");
         BigDecimal naoComputadas = item(itens, true, "DESPESAS NAO COMPUTADAS");
         BigDecimal dtp = item(itens, true, "DESPESA TOTAL COM PESSOAL");
-        BigDecimal rcl = item(itens, false, "RECEITA CORRENTE LIQUIDA AJUSTADA");
+        // O CSV do SIMAM traz só os itens de despesa; a RCL fica em outro relatório. Sem ela, grava 0 e o % fica em 0.
+        BigDecimal rcl = itemOuZero(itens, "RECEITA CORRENTE LIQUIDA");
 
         String entidade = rotulo(rotulos, "entidade");
         if (entidade.isEmpty()) {

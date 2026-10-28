@@ -200,6 +200,9 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
           )}
           {!d ? <div className="vazio">{resultado.mensagem}</div> : (
             <>
+              {d.rclAjustada === 0 && (
+                <p className="hint" style={{ marginTop: 0 }}>O demonstrativo do SIMAM não traz a receita corrente líquida (RCL), então o percentual e a margem não puderam ser calculados. A despesa com pessoal foi importada normalmente.</p>
+              )}
               <div className="destaques">
                 <div className="destaque"><span>Despesa sobre a RCL</span><strong>{pct(d.percentual)}</strong><small>limite máximo {pct(d.limiteMaximo)}</small></div>
                 <div className="destaque"><span>Uso do limite</span><strong style={{ color: FAIXAS[d.faixa].cor }}>{pct((d.percentual / d.limiteMaximo) * 100, 1)}</strong><small>{FAIXAS[d.faixa].descricao}</small></div>
