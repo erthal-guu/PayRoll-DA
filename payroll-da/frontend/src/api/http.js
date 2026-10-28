@@ -26,7 +26,6 @@ async function req(caminho, opcoes) {
 const filtros = (f) => ({ ano: f.ano, mes: f.mes, poder: f.poder, codIbge: f.codIbge, faixa: f.faixa, busca: f.busca })
 
 export const api = {
-  modo: 'api',
   periodos: () => req('/api/dashboard/periodos'),
   municipios: () => req('/api/dashboard/municipios'),
   // o resumo mostra a distribuição por faixa, por isso ignora o filtro de faixa
