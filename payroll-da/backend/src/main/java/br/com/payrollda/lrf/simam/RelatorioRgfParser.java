@@ -7,6 +7,7 @@ import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -99,6 +100,166 @@ public final class RelatorioRgfParser {
             }
         }
         return ler(linhas, linhas.stream().flatMap(List::stream).toList(), codIbge);
+    }
+
+    /** O CSV do ReportViewer do SIMAM vem em formato de dados: cabeçalho com nomes dos controles (dsItem1, vl...). */
+    public static boolean ehCsvDados(String csv) {
+        return csv != null && csv.contains("dsItem1") && csv.contains("vlLiquidadoPeriodoMovelAnual");
+    }
+
+    /**
+     * Lê o CSV em formato de dados: cada linha tem o nome do item (dsItem1) e o valor dos últimos 12 meses
+     * (vlLiquidadoPeriodoMovelAnual). Entidade, município, ano e período não vêm no CSV; saem dos rótulos escolhidos
+     * nos filtros do formulário.
+     */
+    public static LinhaDespesa deCsvDados(String csv, Map<String, String> rotulos, String codIbge) throws IOException {
+        String texto = csv.startsWith("\uFEFF") ? csv.substring(1) : csv;
+        String primeira = texto.lines().findFirst().orElse("");
+        char delimitador = primeira.chars().filter(c -> c == ';').count() > primeira.chars().filter(c -> c == ',').count() ? ';' : ',';
+        List<String[]> itens = new ArrayList<>(); // {rótulo sem acento, rótulo original, valor}
+        int iItem = -1;
+        int iValor = -1;
+        try (CSVParser p = CSVFormat.DEFAULT.builder().setDelimiter(delimitador).setIgnoreEmptyLines(true).build()
+                .parse(new StringReader(texto))) {
+            for (CSVRecord r : p) {
+                if (iItem < 0) {
+                    for (int i = 0; i < r.size(); i++) {
+                        if (limpar(r.get(i)).equals("dsItem1")) {
+                            iItem = i;
+                        } else if (limpar(r.get(i)).equals("vlLiquidadoPeriodoMovelAnual")) {
+                            iValor = i;
+                        }
+                    }
+                    if (iItem < 0 || iValor < 0) {
+                        iItem = -1;
+                        iValor = -1;
+                    }
+                    continue;
+                }
+                if (r.size() > Math.max(iItem, iValor)) {
+                    String rotulo = limpar(r.get(iItem));
+                    String valor = limpar(r.get(iValor));
+                    if (!rotulo.isEmpty() && !valor.isEmpty()) {
+                        itens.add(new String[] {sem(rotulo), rotulo, valor});
+                    }
+                }
+            }
+        }
+        if (itens.isEmpty()) {
+            throw new RelatorioInvalidoException("O CSV do SIMAM não trouxe linhas com os itens do demonstrativo.");
+        }
+        BigDecimal bruta = item(itens, true, "DESPESA BRUTA COM PESSOAL");
+        BigDecimal ativo = itemIgual(itens, "PESSOAL ATIVO");
+        BigDecimal inativos = itemIgual(itens, "PESSOAL INATIVO E PENSIONISTAS");
+        BigDecimal outras = itemOuZero(itens, "OUTRAS DESPESAS DE PESSOAL");
+        BigDecimal naoComputadas = item(itens, true, "DESPESAS NAO COMPUTADAS");
+        BigDecimal dtp = item(itens, true, "DESPESA TOTAL COM PESSOAL");
+        BigDecimal rcl = item(itens, false, "RECEITA CORRENTE LIQUIDA AJUSTADA");
+
+        String entidade = rotulo(rotulos, "entidade");
+        if (entidade.isEmpty()) {
+            throw new RelatorioInvalidoException("Não sei qual é a entidade: o formulário do SIMAM não informou o campo Entidade.");
+        }
+        int ano = inteiro(rotulo(rotulos, "ano"));
+        int mes = mesDoPeriodo(rotulo(rotulos, "periodo"));
+        if (ano == 0 || mes == 0) {
+            throw new RelatorioInvalidoException("Não sei o ano e o período do relatório (ano=\"" + rotulo(rotulos, "ano")
+                    + "\", período=\"" + rotulo(rotulos, "periodo") + "\").");
+        }
+        String municipio = titulo(rotulo(rotulos, "municipio"));
+        if (municipio.isEmpty()) {
+            Matcher m = Pattern.compile("(?i)munic[ií]pal\\s+de\\s+(.+)$").matcher(entidade);
+            municipio = m.find() ? titulo(m.group(1)) : titulo(entidade);
+        }
+        Poder poder = sem(entidade).contains("CAMARA") ? Poder.LEGISLATIVO : Poder.EXECUTIVO;
+        for (String[] it : itens) {
+            if (it[0].startsWith("LIMITE MAXIMO")) {
+                try {
+                    BigDecimal lim = valor(it[2].replace("%", ""));
+                    for (Poder x : Poder.values()) {
+                        if (x.limiteMaximo().compareTo(lim) == 0) {
+                            poder = x;
+                        }
+                    }
+                } catch (RelatorioInvalidoException ignorado) {
+                    // o percentual não está nessa coluna; vale o palpite pelo nome da entidade
+                }
+                break;
+            }
+        }
+        return new LinhaDespesa(codigo(codIbge, municipio), municipio, titulo(entidade), poder, ano, mes,
+                bruta, ativo, inativos, outras, naoComputadas, dtp, rcl);
+    }
+
+    private static String rotulo(Map<String, String> rotulos, String chave) {
+        String v = rotulos == null ? null : rotulos.get(chave);
+        return v == null ? "" : limpar(v);
+    }
+
+    private static int inteiro(String t) {
+        Matcher m = Pattern.compile("\\d{4}").matcher(t);
+        return m.find() ? Integer.parseInt(m.group()) : 0;
+    }
+
+    /** "Outubro" -> 10; "2º Quadrimestre" -> 8; "1º Semestre" -> 6; "10" -> 10. O período é o último mês coberto. */
+    static int mesDoPeriodo(String t) {
+        String x = sem(t);
+        for (int i = 0; i < MESES.size(); i++) {
+            if (x.startsWith(MESES.get(i).toUpperCase(Locale.ROOT)) || x.startsWith(
+                    List.of("JANEIRO", "FEVEREIRO", "MARCO", "ABRIL", "MAIO", "JUNHO", "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO").get(i))) {
+                return i + 1;
+            }
+        }
+        Matcher n = Pattern.compile("(\\d+)").matcher(x);
+        int num = n.find() ? Integer.parseInt(n.group(1)) : 0;
+        if (x.contains("QUADRIMESTRE")) {
+            return num >= 1 && num <= 3 ? num * 4 : 0;
+        }
+        if (x.contains("SEMESTRE")) {
+            return num >= 1 && num <= 2 ? num * 6 : 0;
+        }
+        return num >= 1 && num <= 12 ? num : 0;
+    }
+
+    private static BigDecimal item(List<String[]> itens, boolean prefixo, String chave) {
+        for (String[] it : itens) {
+            if (prefixo ? it[0].startsWith(chave) : it[0].contains(chave)) {
+                return valor(it[2]);
+            }
+        }
+        throw new RelatorioInvalidoException("Item \"" + chave.toLowerCase(Locale.ROOT) + "\" não encontrado no CSV. Itens recebidos: "
+                + itens.stream().map(i -> i[1]).distinct().limit(15).toList());
+    }
+
+    private static BigDecimal itemIgual(List<String[]> itens, String chave) {
+        for (String[] it : itens) {
+            if (it[0].equals(chave)) {
+                return valor(it[2]);
+            }
+        }
+        throw new RelatorioInvalidoException("Item \"" + chave.toLowerCase(Locale.ROOT) + "\" não encontrado no CSV. Itens recebidos: "
+                + itens.stream().map(i -> i[1]).distinct().limit(15).toList());
+    }
+
+    private static BigDecimal itemOuZero(List<String[]> itens, String chave) {
+        for (String[] it : itens) {
+            if (it[0].startsWith(chave)) {
+                return valor(it[2]);
+            }
+        }
+        return BigDecimal.ZERO;
+    }
+
+    /** Aceita "1.234.567,89" (BR) e "1234567.89" (ponto decimal), com ou sem "R$". */
+    static BigDecimal valor(String t) {
+        String s = t.replace("R$", "").replace(" ", "").trim();
+        if (s.contains(",")) {
+            return numero(s);
+        }
+        if (s.matches("-?\\d+(\\.\\d+)?")) {
+            return new BigDecimal(s);
+        }
+        return numero(s);
     }
 
     static LinhaDespesa ler(List<List<String>> linhas, List<String> todas, String codIbge) {

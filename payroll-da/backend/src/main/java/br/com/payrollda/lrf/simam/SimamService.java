@@ -52,7 +52,9 @@ public class SimamService {
         String motivo = "";
         if (r.csv() != null) {
             try {
-                linha = RelatorioRgfParser.deCsv(r.csv(), codIbge);
+                linha = RelatorioRgfParser.ehCsvDados(r.csv())
+                        ? RelatorioRgfParser.deCsvDados(r.csv(), r.rotulos(), codIbge)
+                        : RelatorioRgfParser.deCsv(r.csv(), codIbge);
             } catch (RuntimeException | IOException e) {
                 motivo = "CSV: " + e.getMessage();
             }

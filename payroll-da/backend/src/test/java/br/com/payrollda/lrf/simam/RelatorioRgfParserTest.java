@@ -62,4 +62,22 @@ class RelatorioRgfParserTest {
         assertThrows(RelatorioRgfParser.RelatorioInvalidoException.class,
                 () -> RelatorioRgfParser.deCsv("a,b\nRGF - ANEXO 2,1\n", null));
     }
+
+    @Test
+    void leOCsvEmFormatoDeDados() throws Exception {
+        String csv = "Textbox78;dsItem1;vlLiquidadoPeriodoMovelAnual;Textbox13\n"
+                + "x;DESPESA BRUTA COM PESSOAL (I);\"1.000,00\";y\n"
+                + "x;Pessoal Ativo;\"600,00\";y\n"
+                + "x;Pessoal Inativo e Pensionistas;\"400,00\";y\n"
+                + "x;DESPESAS NÃO COMPUTADAS (II);\"100,00\";y\n"
+                + "x;DESPESA TOTAL COM PESSOAL - DTP (III) = (I - II);\"900,00\";y\n"
+                + "x;RECEITA CORRENTE LÍQUIDA AJUSTADA (V);\"3.000,00\";y\n";
+        assertEquals(true, RelatorioRgfParser.ehCsvDados(csv));
+        LinhaDespesa l = RelatorioRgfParser.deCsvDados(csv,
+                java.util.Map.of("entidade", "Câmara Municipal de Abatiá", "ano", "2019", "periodo", "Outubro", "municipio", "Abatiá"), "9");
+        assertEquals(0, new BigDecimal("1000.00").compareTo(l.despesaBruta()));
+        assertEquals(0, new BigDecimal("900.00").compareTo(l.despesaTotal()));
+        assertEquals(2019, l.ano());
+        assertEquals(10, l.mes());
+    }
 }

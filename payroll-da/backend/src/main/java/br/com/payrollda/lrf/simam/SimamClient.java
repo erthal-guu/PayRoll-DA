@@ -54,7 +54,7 @@ public class SimamClient {
     }
 
     /** O que o SIMAM devolveu depois do Consultar: a tela de visualização e, se deu, o CSV exportado. */
-    public record Retorno(String htmlVisualizacao, String csv, String urlExportacao) {
+    public record Retorno(String htmlVisualizacao, String csv, String urlExportacao, Map<String, String> rotulos) {
     }
 
     private static final Pattern EXPORT_BASE = Pattern.compile("\"ExportUrlBase\":\"([^\"]+)\"");
@@ -123,6 +123,10 @@ public class SimamClient {
                 throw new IllegalArgumentException("Escolha o filtro \"" + f.rotulo() + "\" antes de consultar.");
             }
         }
+        Map<String, String> rotulos = new LinkedHashMap<>();
+        for (Filtro f : lerFiltros(s.pagina)) {
+            f.opcoes().stream().filter(o -> o.valor().equals(f.valor())).findFirst().ifPresent(o -> rotulos.put(f.chave(), o.rotulo()));
+        }
         Map<String, String> campos = campos(s.pagina);
         if (!clicarConsultar(s.pagina, campos)) {
             throw new IOException(diagnosticar(s, "não encontrei o botão Consultar na página do SIMAM (o layout pode ter mudado)"));
@@ -141,12 +145,12 @@ public class SimamClient {
             base = exportBase(html);
         }
         if (base == null) {
-            return new Retorno(html, null, null);
+            return new Retorno(html, null, null, rotulos);
         }
         URI exportacao = s.url.resolve(base + "CSV");
         s.etapa = "baixando o CSV do relatório";
         Thread.sleep(espera.toMillis());
-        return new Retorno(html, get(s, exportacao), exportacao.toString());
+        return new Retorno(html, get(s, exportacao), exportacao.toString(), rotulos);
     }
 
     private static final Pattern DO_POSTBACK = Pattern.compile("__doPostBack\\(\\s*['\"]([^'\"]+)['\"]");
