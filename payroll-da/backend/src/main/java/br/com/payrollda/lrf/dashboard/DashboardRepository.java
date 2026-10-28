@@ -11,6 +11,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import br.com.payrollda.lrf.auth.UsuarioAtual;
 import br.com.payrollda.lrf.dashboard.DashboardDtos.Composicao;
 import br.com.payrollda.lrf.dashboard.DashboardDtos.EntidadeLinha;
 import br.com.payrollda.lrf.dashboard.DashboardDtos.FaixasNoPeriodo;
@@ -47,7 +48,10 @@ public class DashboardRepository {
     }
 
     public List<Municipio> municipios() {
-        return jdbc.query("SELECT DISTINCT cod_ibge, municipio FROM entidade ORDER BY municipio",
+        String restrito = UsuarioAtual.codIbgeRestrito();
+        return jdbc.query("SELECT DISTINCT cod_ibge, municipio FROM entidade"
+                        + (restrito != null ? " WHERE cod_ibge = :c" : "") + " ORDER BY municipio",
+                new MapSqlParameterSource("c", restrito),
                 (rs, n) -> new Municipio(rs.getString("cod_ibge"), rs.getString("municipio")));
     }
 
@@ -101,6 +105,10 @@ public class DashboardRepository {
     }
 
     public List<DashboardDtos.EntidadeResumo> entidadesDoMunicipio(String codIbge) {
+        String restrito = UsuarioAtual.codIbgeRestrito();
+        if (restrito != null && !restrito.equals(codIbge)) {
+            return List.of();
+        }
         return jdbc.query("SELECT id, nome, poder FROM entidade WHERE cod_ibge = :c ORDER BY poder, nome",
                 new MapSqlParameterSource("c", codIbge),
                 (rs, n) -> new DashboardDtos.EntidadeResumo(rs.getLong("id"), rs.getString("nome"), rs.getString("poder")));
@@ -109,11 +117,13 @@ public class DashboardRepository {
     /** Todas as linhas do demonstrativo de uma entidade num período (Optional vazio se não houver dado). */
     public Optional<DashboardDtos.Demonstrativo> demonstrativo(long entidadeId, int ano, int mes) {
         MapSqlParameterSource p = new MapSqlParameterSource().addValue("id", entidadeId).addValue("ano", ano).addValue("mes", mes);
+        String restrito = UsuarioAtual.codIbgeRestrito();
+        p.addValue("c", restrito);
         return jdbc.query("""
                 SELECT e.id, e.cod_ibge, e.municipio, e.nome, e.poder, d.ano, d.mes, d.despesa_bruta, d.pessoal_ativo,
                        d.inativos_pensionistas, d.outras_despesas, d.nao_computadas, d.despesa_total, d.rcl_ajustada,
                        d.percentual, d.limite_maximo, """ + Filtro.SQL_FAIXA + " AS faixa" + FROM
-                + " WHERE e.id = :id AND d.ano = :ano AND d.mes = :mes", p,
+                + " WHERE e.id = :id AND d.ano = :ano AND d.mes = :mes" + (restrito != null ? " AND e.cod_ibge = :c" : ""), p,
                 (rs, n) -> new DashboardDtos.Demonstrativo(rs.getLong("id"), rs.getString("cod_ibge"),
                         rs.getString("municipio"), rs.getString("nome"), rs.getString("poder"), rs.getInt("ano"),
                         rs.getInt("mes"), rs.getBigDecimal("despesa_bruta"), rs.getBigDecimal("pessoal_ativo"),
@@ -125,10 +135,13 @@ public class DashboardRepository {
     }
 
     public List<PontoEvolucao> evolucaoEntidade(long entidadeId) {
+        String restrito = UsuarioAtual.codIbgeRestrito();
         return jdbc.query("""
                 SELECT ano, mes, despesa_total, rcl_ajustada, percentual, limite_maximo
-                  FROM despesa_pessoal WHERE entidade_id = :id ORDER BY ano, mes""",
-                new MapSqlParameterSource("id", entidadeId),
+                  FROM despesa_pessoal WHERE entidade_id = :id"""
+                        + (restrito != null ? " AND entidade_id IN (SELECT id FROM entidade WHERE cod_ibge = :c)" : "")
+                        + " ORDER BY ano, mes",
+                new MapSqlParameterSource("id", entidadeId).addValue("c", restrito),
                 (rs, n) -> new PontoEvolucao(rs.getInt("ano"), rs.getInt("mes"), rs.getBigDecimal("despesa_total"),
                         rs.getBigDecimal("rcl_ajustada"), rs.getBigDecimal("percentual"),
                         rs.getBigDecimal("limite_maximo")));

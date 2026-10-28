@@ -5,6 +5,8 @@ import java.util.Set;
 
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 
+import br.com.payrollda.lrf.auth.UsuarioAtual;
+
 /**
  * Filtros comuns do dashboard. Gera o trecho WHERE com parâmetros nomeados
  * (nunca concatena valores do usuário no SQL).
@@ -28,6 +30,11 @@ public record Filtro(Integer ano, Integer mes, String poder, String codIbge, Str
         poder = normalizarEnum(poder, PODERES, "poder");
         faixa = normalizarEnum(faixa, FAIXAS, "faixa");
         codIbge = codIbge == null || codIbge.isBlank() ? null : codIbge.trim();
+        // usuário de prefeitura só enxerga o próprio município, qualquer que seja o filtro pedido
+        String restrito = UsuarioAtual.codIbgeRestrito();
+        if (restrito != null) {
+            codIbge = restrito;
+        }
         busca = busca == null || busca.isBlank() ? null : busca.trim();
         if (mes != null && (mes < 1 || mes > 12)) {
             throw new IllegalArgumentException("mes deve estar entre 1 e 12");

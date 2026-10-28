@@ -10,12 +10,32 @@ function query(params) {
   return s ? `?${s}` : ''
 }
 
+const CHAVE_TOKEN = 'payroll.token'
+
+function lerToken() {
+  try { return localStorage.getItem(CHAVE_TOKEN) } catch { return null }
+}
+
+function gravarToken(token) {
+  try { token ? localStorage.setItem(CHAVE_TOKEN, token) : localStorage.removeItem(CHAVE_TOKEN) } catch { /* sem armazenamento */ }
+}
+
+/** Adiciona o token de login aos cabeçalhos. */
+function comToken(opcoes = {}) {
+  const token = lerToken()
+  return token ? { ...opcoes, headers: { ...opcoes.headers, Authorization: `Bearer ${token}` } } : opcoes
+}
+
 async function req(caminho, opcoes) {
   let resp
   try {
-    resp = await fetch(BASE + caminho, opcoes)
+    resp = await fetch(BASE + caminho, comToken(opcoes))
   } catch {
     throw new Error(`Não foi possível conectar à API em ${BASE}. Confira se o backend está rodando.`)
+  }
+  if (resp.status === 401 && caminho !== '/api/auth/login') {
+    gravarToken(null)
+    window.dispatchEvent(new Event('payroll:sessao-expirada'))
   }
   if (resp.status === 204) return null
   const corpo = await resp.json().catch(() => null)
@@ -25,7 +45,24 @@ async function req(caminho, opcoes) {
 
 const filtros = (f) => ({ ano: f.ano, mes: f.mes, poder: f.poder, codIbge: f.codIbge, faixa: f.faixa, busca: f.busca })
 
+const json = (corpo) => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) })
+
 export const api = {
+  temToken: () => Boolean(lerToken()),
+  async entrar(email, senha) {
+    const r = await req('/api/auth/login', json({ email, senha }))
+    gravarToken(r.token)
+    return r.usuario
+  },
+  eu: () => req('/api/auth/eu'),
+  async sair() {
+    await req('/api/auth/logout', { method: 'POST' }).catch(() => null)
+    gravarToken(null)
+  },
+  trocarSenha: (senha) => req('/api/auth/senha', json({ senha })),
+  usuarios: () => req('/api/usuarios'),
+  criarUsuario: (u) => req('/api/usuarios', json(u)),
+  removerUsuario: (id) => req(`/api/usuarios/${id}`, { method: 'DELETE' }),
   periodos: () => req('/api/dashboard/periodos'),
   municipios: () => req('/api/dashboard/municipios'),
   // o resumo mostra a distribuição por faixa, por isso ignora o filtro de faixa
@@ -56,7 +93,7 @@ export const api = {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ selecao }),
   }),
   async excel({ entidadeId, ano, mes }) {
-    const resp = await fetch(`${BASE}/api/consultas/excel${query({ entidadeId, ano, mes })}`)
+    const resp = await fetch(`${BASE}/api/consultas/excel${query({ entidadeId, ano, mes })}`, comToken())
     if (!resp.ok) throw new Error('Não foi possível gerar o Excel.')
     const nome = /filename\*?=(?:UTF-8'')?"?([^";]+)/i.exec(resp.headers.get('Content-Disposition') || '')?.[1]
     return { blob: await resp.blob(), nome: nome ? decodeURIComponent(nome) : `RGF_pessoal_${ano}-${mes}.xlsx` }

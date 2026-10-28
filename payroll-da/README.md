@@ -47,14 +47,16 @@ npm run dev                  # painel em http://localhost:5173
 
 Outro banco ou outra senha: use as variáveis `DB_URL`, `DB_USER` e `DB_PASSWORD` antes do `mvn spring-boot:run`.
 
+**Login.** Na primeira subida, sem nenhum usuário no banco, o backend cria o administrador
+`admin@payroll.local` com senha `admin` (mude com `ADMIN_EMAIL` e `ADMIN_SENHA`). Entre com ele e troque a senha na tela **Usuários**.
+Lá o administrador cadastra os usuários de prefeitura, cada um ligado a um município: eles veem só o dashboard do próprio
+município. Importação, consulta automática e cadastro de usuários são só do administrador.
+
 Prévia das telas em `docs/telas/`.
 
-Para carregar dados: tela **Importação** do painel, ou
-
-```bash
-curl -F "arquivo=@dados/exemplo_despesa_pessoal.csv" http://localhost:8080/api/importacoes/upload
-curl http://localhost:8080/api/importacoes            # acompanha o status
-```
+Para carregar dados: rode `banco/03_dados_exemplo.sql` ou, logado como administrador, use a tela **Importar CSV**
+com `dados/exemplo_despesa_pessoal.csv`. A API exige o cabeçalho `Authorization: Bearer <token>` devolvido por
+`POST /api/auth/login` (`{"email", "senha"}`).
 
 ## 2. Integração com o TCE-PR (SIMAM)
 

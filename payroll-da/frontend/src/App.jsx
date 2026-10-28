@@ -9,8 +9,10 @@ import FaixasDonut from './components/FaixasDonut.jsx'
 import Filtros from './components/Filtros.jsx'
 import Importacao from './components/Importacao.jsx'
 import Kpis from './components/Kpis.jsx'
+import Login from './components/Login.jsx'
 import Ranking from './components/Ranking.jsx'
 import TabelaEntidades from './components/TabelaEntidades.jsx'
+import Usuarios from './components/Usuarios.jsx'
 import { periodoTxt } from './formato.js'
 import { useCarregar } from './useCarregar.js'
 
@@ -18,17 +20,38 @@ const ICONES = {
   consultar: 'M11 4a7 7 0 1 0 4.2 12.6l4.1 4.1 1.4-1.4-4.1-4.1A7 7 0 0 0 11 4Zm0 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z',
   dashboard: 'M4 13h6V4H4v9Zm0 7h6v-5H4v5Zm10 0h6v-9h-6v9Zm0-16v5h6V4h-6Z',
   importacao: 'M12 3 6.5 8.5l1.4 1.4L11 6.8V16h2V6.8l3.1 3.1 1.4-1.4L12 3ZM5 18v3h14v-3h-2v1H7v-1H5Z',
+  usuarios: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5Z',
 }
 
-const TELAS = { consultar: 'Consulta automática', dashboard: 'Dashboard', importacao: 'Importar CSV' }
+// Prefeituras só veem o dashboard do próprio município; importar e consultar o SIMAM é do administrador.
+const TELAS_ADMIN = { consultar: 'Consulta automática', dashboard: 'Dashboard', importacao: 'Importar CSV', usuarios: 'Usuários' }
+const TELAS_PREFEITURA = { dashboard: 'Dashboard', usuarios: 'Minha conta' }
 
-function telaInicial() {
+function telaInicial(TELAS) {
   const h = window.location.hash.slice(1)
-  return TELAS[h] ? h : 'consultar'
+  return TELAS[h] ? h : Object.keys(TELAS)[0]
 }
 
+/** Pede login antes de mostrar o painel. */
 export default function App() {
-  const [tela, setTela] = useState(telaInicial)
+  const [usuario, setUsuario] = useState(null)
+  const [verificando, setVerificando] = useState(api.temToken())
+
+  useEffect(() => {
+    if (verificando) api.eu().then(setUsuario).catch(() => null).finally(() => setVerificando(false))
+    const expirou = () => setUsuario(null)
+    window.addEventListener('payroll:sessao-expirada', expirou)
+    return () => window.removeEventListener('payroll:sessao-expirada', expirou)
+  }, [])
+
+  if (verificando) return null
+  if (!usuario) return <Login aoEntrar={setUsuario} />
+  return <Painel usuario={usuario} sair={async () => { await api.sair(); setUsuario(null) }} />
+}
+
+function Painel({ usuario, sair }) {
+  const TELAS = usuario.perfil === 'ADMIN' ? TELAS_ADMIN : TELAS_PREFEITURA
+  const [tela, setTela] = useState(() => telaInicial(TELAS))
   const [versao, setVersao] = useState(0) // muda após uma importação para recarregar tudo
   const [filtros, setFiltros] = useState({})
   const [ordem, setOrdem] = useState({ campo: 'usoLimite', direcao: 'desc' })
@@ -101,8 +124,10 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <div className="side-foot">
-          Dados importados do TCE-PR via API.
+        <div className="side-foot usuario-logado">
+          <b>{usuario.nome}</b>
+          <span>{usuario.perfil === 'ADMIN' ? 'Administrador' : `Prefeitura · ${usuario.municipio || usuario.codIbge}`}</span>
+          <button className="link" onClick={sair}>Sair</button>
         </div>
       </aside>
 
@@ -112,6 +137,8 @@ export default function App() {
             perguntar={(texto) => setPedidoChat({ texto, em: Date.now() })} />
         ) : tela === 'importacao' ? (
           <Importacao aoImportar={() => setVersao((v) => v + 1)} />
+        ) : tela === 'usuarios' ? (
+          <Usuarios usuario={usuario} municipios={municipios.dados || []} />
         ) : (
           <>
             <div>
@@ -125,7 +152,8 @@ export default function App() {
             {erro && <div className="erro">{erro}</div>}
             {semDados && (
               <div className="panel vazio">
-                Ainda não há dados importados. <button className="link" onClick={() => irPara('importacao')}>Importar um arquivo do TCE-PR</button>
+                Ainda não há dados importados.{' '}
+                {TELAS.importacao && <button className="link" onClick={() => irPara('importacao')}>Importar um arquivo do TCE-PR</button>}
               </div>
             )}
 

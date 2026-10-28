@@ -248,3 +248,12 @@ code { background: var(--panel-2); }
   .nav { padding-inline: 0; }
   .nav button[aria-current="page"] { background: none; color: var(--accent); box-shadow: none; }
 }
+
+/* Login e usuários */
+.login { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+.login-form { width: min(380px, 100%); display: flex; flex-direction: column; gap: 14px; padding: 28px; }
+.login-form .logo { padding-inline: 0; margin-bottom: 6px; }
+.form-usuario { display: flex; flex-direction: column; gap: 12px; align-self: start; }
+.form-usuario .btn { align-self: flex-start; }
+.usuario-logado { display: flex; flex-direction: column; gap: 6px; }
+.usuario-logado .link { align-self: flex-start; }

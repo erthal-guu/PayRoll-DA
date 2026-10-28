@@ -10,13 +10,19 @@ spring:
     password: ${DB_PASSWORD:payroll}
   flyway:
     enabled: true
-    # Banco criado pelos scripts de banco/ (tabelas já existem): começa a partir da versão 2.
+    # Banco criado pelos scripts de banco/ (tabelas já existem): começa a partir da versão 3.
     baseline-on-migrate: true
-    baseline-version: 2
+    baseline-version: 3
   servlet:
     multipart:
       max-file-size: 200MB
       max-request-size: 200MB
+
+# Administrador criado na primeira subida, quando não há nenhum usuário. Troque a senha depois.
+payroll:
+  admin:
+    email: ${ADMIN_EMAIL:admin@payroll.local}
+    senha: ${ADMIN_SENHA:admin}
 
 management:
   endpoints:
