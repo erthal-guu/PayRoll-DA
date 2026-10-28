@@ -26,12 +26,18 @@ function comToken(opcoes = {}) {
   return token ? { ...opcoes, headers: { ...opcoes.headers, Authorization: `Bearer ${token}` } } : opcoes
 }
 
-async function req(caminho, opcoes) {
+async function req(caminho, opcoes = {}, limiteMs = 0) {
   let resp
+  let estourou = false
+  const relogio = limiteMs ? new AbortController() : null
+  const timer = relogio && setTimeout(() => { estourou = true; relogio.abort() }, limiteMs)
   try {
-    resp = await fetch(BASE + caminho, comToken(opcoes))
+    resp = await fetch(BASE + caminho, comToken(relogio ? { ...opcoes, signal: relogio.signal } : opcoes))
   } catch {
+    if (estourou) throw new Error(`Passaram ${Math.round(limiteMs / 1000)} segundos sem resposta do backend. Veja a última linha "SIMAM:" no console do backend.`)
     throw new Error(`Não foi possível conectar à API em ${BASE}. Confira se o backend está rodando.`)
+  } finally {
+    if (timer) clearTimeout(timer)
   }
   if (resp.status === 401 && caminho !== '/api/auth/login') {
     gravarToken(null)
@@ -88,10 +94,10 @@ export const api = {
   }),
   simamFiltros: (selecao) => req('/api/simam/filtros', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ selecao }),
-  }),
+  }, 170000),
   consultarSimam: (selecao) => req('/api/simam/consultar', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ selecao }),
-  }),
+  }, 170000),
   async excel({ entidadeId, ano, mes }) {
     const resp = await fetch(`${BASE}/api/consultas/excel${query({ entidadeId, ano, mes })}`, comToken())
     if (!resp.ok) throw new Error('Não foi possível gerar o Excel.')

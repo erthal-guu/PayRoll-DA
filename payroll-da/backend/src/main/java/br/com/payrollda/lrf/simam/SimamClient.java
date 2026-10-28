@@ -36,6 +36,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class SimamClient {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(SimamClient.class);
+
+    /** Tempo máximo de uma operação inteira (abrir + filtros + consultar + exportar). */
+    private static final Duration LIMITE_TOTAL = Duration.ofSeconds(150);
+    /** Tempo máximo de cada pedido ao SIMAM. */
+    private static final Duration LIMITE_PEDIDO = Duration.ofSeconds(45);
+
     public record Opcao(String valor, String rotulo) {
     }
 
@@ -68,6 +75,19 @@ public class SimamClient {
                 .connectTimeout(Duration.ofSeconds(20)).build();
         Document pagina;
         URI url;
+        final long prazo = System.nanoTime() + LIMITE_TOTAL.toNanos();
+        String etapa = "abrindo o formulário";
+
+        /** Tempo que ainda resta para o próximo pedido; falha com uma mensagem clara quando acabou. */
+        Duration restante() throws java.net.http.HttpTimeoutException {
+            long ns = prazo - System.nanoTime();
+            if (ns <= 0) {
+                throw new java.net.http.HttpTimeoutException("o SIMAM demorou mais de " + LIMITE_TOTAL.toSeconds()
+                        + " segundos (etapa: " + etapa + ")");
+            }
+            Duration d = Duration.ofNanos(ns);
+            return d.compareTo(LIMITE_PEDIDO) < 0 ? d : LIMITE_PEDIDO;
+        }
     }
 
     /** Lê o estado dos filtros depois de aplicar as escolhas já feitas (para montar/atualizar o formulário). */
@@ -89,8 +109,10 @@ public class SimamClient {
         if (!clicarConsultar(s.pagina, campos)) {
             throw new IOException(diagnosticar(s, "não encontrei o botão Consultar na página do SIMAM (o layout pode ter mudado)"));
         }
+        s.etapa = "clicando em Consultar (o SIMAM gera o relatório)";
         postar(s, campos);
 
+        s.etapa = "esperando a tela do relatório";
         String html = s.pagina.outerHtml();
         String base = exportBase(html);
         for (int i = 0; base == null && i < 3; i++) { // a tela de visualização às vezes carrega o relatório depois
@@ -103,6 +125,7 @@ public class SimamClient {
             return new Retorno(html, null, null);
         }
         URI exportacao = s.url.resolve(base + "CSV");
+        s.etapa = "baixando o CSV do relatório";
         Thread.sleep(espera.toMillis());
         return new Retorno(html, get(s, exportacao), exportacao.toString());
     }
@@ -184,6 +207,7 @@ public class SimamClient {
             if (proximo.select("option").stream().noneMatch(o -> o.attr("value").equals(valor))) {
                 throw new IllegalArgumentException("Opção inválida para o filtro \"" + chave + "\". Recarregue a página e escolha de novo.");
             }
+            s.etapa = "escolhendo o campo \"" + chave + "\"";
             if (proximo.attr("onchange").contains("__doPostBack")) {
                 Map<String, String> campos = campos(s.pagina);
                 campos.put(proximo.attr("name"), valor);
@@ -295,12 +319,12 @@ public class SimamClient {
         StringBuilder corpo = new StringBuilder();
         campos.forEach((k, v) -> corpo.append(corpo.length() > 0 ? "&" : "")
                 .append(URLEncoder.encode(k, StandardCharsets.UTF_8)).append('=').append(URLEncoder.encode(v == null ? "" : v, StandardCharsets.UTF_8)));
-        HttpRequest req = HttpRequest.newBuilder(s.url).timeout(Duration.ofMinutes(2))
+        HttpRequest req = HttpRequest.newBuilder(s.url).timeout(s.restante())
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .header("Referer", s.url.toString())
                 .header("User-Agent", "payroll-da/0.1 (consulta de relatorios LRF)")
                 .POST(HttpRequest.BodyPublishers.ofString(corpo.toString())).build();
-        HttpResponse<String> r = s.http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> r = enviar(s, req);
         if (r.statusCode() >= 400) {
             throw new IOException("O SIMAM respondeu HTTP " + r.statusCode() + ".");
         }
@@ -308,11 +332,23 @@ public class SimamClient {
         s.pagina = Jsoup.parse(r.body(), r.uri().toString());
     }
 
+    private static HttpResponse<String> enviar(Sessao s, HttpRequest req) throws IOException, InterruptedException {
+        long inicio = System.nanoTime();
+        log.info("SIMAM: {} ({} {})", s.etapa, req.method(), req.uri().getPath());
+        try {
+            HttpResponse<String> r = s.http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            log.info("SIMAM: respondeu {} em {} ms", r.statusCode(), (System.nanoTime() - inicio) / 1_000_000);
+            return r;
+        } catch (java.net.http.HttpTimeoutException e) {
+            throw new java.net.http.HttpTimeoutException("o SIMAM não respondeu a tempo (etapa: " + s.etapa + ")");
+        }
+    }
+
     private String get(Sessao s, URI uri) throws IOException, InterruptedException {
-        HttpRequest req = HttpRequest.newBuilder(uri).timeout(Duration.ofMinutes(2))
+        HttpRequest req = HttpRequest.newBuilder(uri).timeout(s.restante())
                 .header("User-Agent", "payroll-da/0.1 (consulta de relatorios LRF)")
                 .header("Referer", s.url == null ? uri.toString() : s.url.toString()).GET().build();
-        HttpResponse<String> r = s.http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> r = enviar(s, req);
         if (r.statusCode() >= 400) {
             throw new IOException("O SIMAM respondeu HTTP " + r.statusCode() + " em " + uri.getPath() + ".");
         }

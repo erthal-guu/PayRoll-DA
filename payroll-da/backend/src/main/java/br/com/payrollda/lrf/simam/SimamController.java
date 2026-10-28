@@ -55,7 +55,8 @@ public class SimamController {
     /** Explica em português as falhas de rede mais comuns (algumas exceções vêm sem mensagem). */
     static String motivo(IOException e) {
         if (e instanceof java.net.http.HttpTimeoutException) {
-            return "o site do TCE-PR demorou demais para responder. Tente de novo em alguns minutos.";
+            return (e.getMessage() == null ? "o site do TCE-PR demorou demais para responder" : e.getMessage())
+                    + ". Tente de novo em alguns minutos.";
         }
         if (e instanceof java.net.ConnectException || e instanceof java.net.UnknownHostException) {
             return "não consegui conectar em simam.tce.pr.gov.br. Confira a internet, o firewall ou o proxy deste computador.";
