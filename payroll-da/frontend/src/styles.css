@@ -265,6 +265,9 @@ table.demonstrativo tr.forte td:first-child { padding-left: 12px; }
 /* Usuários */
 .form-usuario { display: flex; flex-direction: column; gap: 14px; align-self: start; }
 .form-usuario .btn { align-self: flex-start; }
+.form-usuario .acoes-form { display: flex; gap: 10px; }
+.form-usuario .campo-check { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.acoes-usuario { display: inline-flex; gap: 12px; }
 
 /* Detalhe da entidade */
 .detalhe { border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); box-shadow: 0 0 0 4px var(--accent-dim), var(--sombra-alta); }

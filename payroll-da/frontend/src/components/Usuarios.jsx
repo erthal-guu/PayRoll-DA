@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/index.js'
 
-const VAZIO = { nome: '', email: '', senha: '', perfil: 'PREFEITURA', codIbge: '' }
+const VAZIO = { nome: '', email: '', senha: '', perfil: 'PREFEITURA', codIbge: '', ativo: true }
 
 export default function Usuarios({ usuario, municipios }) {
   const [lista, setLista] = useState([])
   const [novo, setNovo] = useState(VAZIO)
+  const [editando, setEditando] = useState(null)
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState(null)
   const [aviso, setAviso] = useState(null)
@@ -15,18 +16,39 @@ export default function Usuarios({ usuario, municipios }) {
 
   const campo = (k) => ({ value: novo[k], onChange: (e) => setNovo({ ...novo, [k]: e.target.value }) })
 
-  async function criar(ev) {
+  async function salvar(ev) {
     ev.preventDefault()
     setErro(null)
     setAviso(null)
     const municipio = municipios.find((m) => m.codIbge === novo.codIbge)?.municipio
+      || (editando?.codIbge === novo.codIbge ? editando.municipio : undefined)
     try {
-      await api.criarUsuario({ ...novo, municipio })
+      if (editando) {
+        await api.editarUsuario(editando.id, { ...novo, municipio })
+        setAviso('Usuário atualizado.')
+      } else {
+        await api.criarUsuario({ ...novo, municipio })
+        setAviso('Usuário criado.')
+      }
       setNovo(VAZIO)
-      setAviso('Usuário criado.')
+      setEditando(null)
       atualizar()
     } catch (e) { setErro(e.message) }
   }
+
+  function editar(u) {
+    setErro(null)
+    setAviso(null)
+    setEditando(u)
+    setNovo({ nome: u.nome, email: u.email, senha: '', perfil: u.perfil, codIbge: u.codIbge || '', ativo: u.ativo })
+  }
+
+  function cancelar() {
+    setEditando(null)
+    setNovo(VAZIO)
+  }
+
+  const proprio = editando?.id === usuario.id
 
   async function remover(u) {
     if (!window.confirm(`Remover o usuário ${u.nome}?`)) return
@@ -57,13 +79,13 @@ export default function Usuarios({ usuario, municipios }) {
 
       {usuario.perfil === 'ADMIN' && (
         <div className="grade">
-          <form className="panel form-usuario" onSubmit={criar}>
-            <div className="panel-head"><h2>Novo usuário</h2></div>
+          <form className="panel form-usuario" onSubmit={salvar}>
+            <div className="panel-head"><h2>{editando ? 'Editar usuário' : 'Novo usuário'}</h2></div>
             <label className="campo">Nome<input required {...campo('nome')} /></label>
             <label className="campo">E-mail<input type="email" required {...campo('email')} /></label>
-            <label className="campo">Senha (mínimo 6 caracteres)<input type="password" required minLength={6} autoComplete="new-password" {...campo('senha')} /></label>
+            <label className="campo">{editando ? 'Nova senha (deixe em branco para manter)' : 'Senha (mínimo 6 caracteres)'}<input type="password" required={!editando} minLength={6} autoComplete="new-password" {...campo('senha')} /></label>
             <label className="campo">Perfil
-              <select {...campo('perfil')}>
+              <select disabled={proprio} {...campo('perfil')}>
                 <option value="PREFEITURA">Prefeitura</option>
                 <option value="ADMIN">Administrador</option>
               </select>
@@ -76,14 +98,24 @@ export default function Usuarios({ usuario, municipios }) {
                 </select>
               </label>
             )}
-            <button className="btn">Criar usuário</button>
+            {editando && (
+              <label className="campo-check">
+                <input type="checkbox" disabled={proprio} checked={novo.ativo} onChange={(e) => setNovo({ ...novo, ativo: e.target.checked })} />
+                Ativo (usuário inativo não consegue entrar)
+              </label>
+            )}
+            {proprio && <span className="hint">Você não pode mudar o próprio perfil nem se desativar.</span>}
+            <div className="acoes-form">
+              <button className="btn">{editando ? 'Salvar alterações' : 'Criar usuário'}</button>
+              {editando && <button type="button" className="btn ghost" onClick={cancelar}>Cancelar</button>}
+            </div>
           </form>
 
           <div className="panel">
             <div className="panel-head"><h2>Cadastrados</h2></div>
             <div className="tabela-wrap">
               <table>
-                <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Município</th><th /></tr></thead>
+                <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Município</th><th>Situação</th><th /></tr></thead>
                 <tbody>
                   {lista.map((u) => (
                     <tr key={u.id}>
@@ -91,7 +123,13 @@ export default function Usuarios({ usuario, municipios }) {
                       <td>{u.email}</td>
                       <td>{u.perfil === 'ADMIN' ? 'Administrador' : 'Prefeitura'}</td>
                       <td>{u.municipio || (u.perfil === 'ADMIN' ? 'Todos' : u.codIbge)}</td>
-                      <td>{u.id !== usuario.id && <button className="link" onClick={() => remover(u)}>Remover</button>}</td>
+                      <td>{u.ativo ? 'Ativo' : 'Inativo'}</td>
+                      <td>
+                        <span className="acoes-usuario">
+                          <button className="link" onClick={() => editar(u)}>Editar</button>
+                          {u.id !== usuario.id && <button className="link" onClick={() => remover(u)}>Remover</button>}
+                        </span>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

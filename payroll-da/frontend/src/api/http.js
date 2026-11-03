@@ -68,6 +68,7 @@ export const api = {
   trocarSenha: (senha) => req('/api/auth/senha', json({ senha })),
   usuarios: () => req('/api/usuarios'),
   criarUsuario: (u) => req('/api/usuarios', json(u)),
+  editarUsuario: (id, u) => req(`/api/usuarios/${id}`, { ...json(u), method: 'PUT' }),
   removerUsuario: (id) => req(`/api/usuarios/${id}`, { method: 'DELETE' }),
   periodos: () => req('/api/dashboard/periodos'),
   municipios: () => req('/api/dashboard/municipios'),
