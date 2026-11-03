@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -29,6 +30,11 @@ public class UsuarioController {
     public record NovoUsuario(String nome, String email, String senha, String perfil, String codIbge, String municipio) {
     }
 
+    /** Senha em branco mantém a atual. */
+    public record EdicaoUsuario(String nome, String email, String senha, String perfil, String codIbge, String municipio,
+            Boolean ativo) {
+    }
+
     @GetMapping
     public List<Usuario> listar() {
         return repo.listar();
@@ -37,6 +43,12 @@ public class UsuarioController {
     @PostMapping
     public Usuario criar(@RequestBody NovoUsuario n) {
         return auth.criarUsuario(n.nome(), n.email(), n.senha(), n.perfil(), n.codIbge(), n.municipio());
+    }
+
+    @PutMapping("/{id}")
+    public Usuario editar(@PathVariable long id, @RequestBody EdicaoUsuario e) {
+        return auth.editarUsuario(UsuarioAtual.get(), id, e.nome(), e.email(), e.senha(), e.perfil(), e.codIbge(),
+                e.municipio(), e.ativo());
     }
 
     @DeleteMapping("/{id}")

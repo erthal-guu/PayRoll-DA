@@ -43,6 +43,29 @@ public class UsuarioRepository {
         return jdbc.queryForObject("SELECT count(*) FROM usuario WHERE lower(email) = lower(?)", Long.class, email) > 0;
     }
 
+    public Optional<Usuario> buscar(long id) {
+        return jdbc.query("SELECT " + COLUNAS + " FROM usuario u WHERE u.id = ?", MAPPER, id).stream().findFirst();
+    }
+
+    /** E-mail já usado por outro usuário (ignora o próprio, para a edição). */
+    public boolean emailEmUsoPorOutro(String email, long id) {
+        return jdbc.queryForObject("SELECT count(*) FROM usuario WHERE lower(email) = lower(?) AND id <> ?", Long.class,
+                email, id) > 0;
+    }
+
+    public long contarAdminsAtivos() {
+        return jdbc.queryForObject("SELECT count(*) FROM usuario WHERE perfil = 'ADMIN' AND ativo", Long.class);
+    }
+
+    public void atualizar(long id, String nome, String email, String perfil, String codIbge, String municipio, boolean ativo) {
+        jdbc.update("UPDATE usuario SET nome = ?, email = ?, perfil = ?, cod_ibge = ?, municipio = ?, ativo = ? WHERE id = ?",
+                nome, email, perfil, codIbge, municipio, ativo, id);
+    }
+
+    public void encerrarSessoes(long id) {
+        jdbc.update("DELETE FROM sessao WHERE usuario_id = ?", id);
+    }
+
     public long criar(String nome, String email, String senhaHash, String perfil, String codIbge, String municipio) {
         return jdbc.queryForObject("""
                 INSERT INTO usuario (nome, email, senha_hash, perfil, cod_ibge, municipio)

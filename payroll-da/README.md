@@ -51,6 +51,8 @@ Outro banco ou outra senha: use as variáveis `DB_URL`, `DB_USER` e `DB_PASSWORD
 `admin@payroll.local` com senha `admin` (mude com `ADMIN_EMAIL` e `ADMIN_SENHA`). Entre com ele e troque a senha na tela **Usuários**.
 Lá o administrador cadastra os usuários de prefeitura, cada um ligado a um município: eles veem só o dashboard do próprio
 município. Importação, consulta automática e cadastro de usuários são só do administrador.
+O administrador também edita qualquer usuário (nome, e-mail, perfil, município, ativo/inativo e, se quiser, uma senha nova).
+Ele não pode tirar o próprio perfil de administrador nem se desativar, e o sistema sempre mantém um administrador ativo.
 
 Prévia das telas em `docs/telas/`.
 

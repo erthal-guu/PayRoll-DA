@@ -15,8 +15,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Login por e-mail e senha. O navegador recebe um token aleatório; o banco guarda só o hash dele.
@@ -97,6 +99,51 @@ public class AuthService implements ApplicationRunner {
         long id = repo.criar(nome.trim(), email.trim(), bcrypt.encode(senha), p,
                 admin ? null : codIbge.trim(), admin ? null : municipio);
         return new Usuario(id, nome.trim(), email.trim(), p, admin ? null : codIbge.trim(), admin ? null : municipio, true);
+    }
+
+    /**
+     * Edição feita pelo administrador. Senha em branco mantém a atual; informada, troca e encerra as sessões.
+     * O administrador não pode tirar o próprio perfil ADMIN nem se desativar, e o sistema nunca fica sem
+     * administrador ativo.
+     */
+    public Usuario editarUsuario(Usuario editor, long id, String nome, String email, String senha, String perfil,
+            String codIbge, String municipio, Boolean ativo) {
+        Usuario atual = repo.buscar(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado."));
+        if (nome == null || nome.isBlank() || email == null || !email.contains("@")) {
+            throw new IllegalArgumentException("Informe nome e um e-mail válido.");
+        }
+        boolean trocaSenha = senha != null && !senha.isEmpty();
+        if (trocaSenha) {
+            validarSenha(senha);
+        }
+        String p = perfil == null ? "" : perfil.trim().toUpperCase(Locale.ROOT);
+        if (!p.equals("ADMIN") && !p.equals("PREFEITURA")) {
+            throw new IllegalArgumentException("Perfil deve ser ADMIN ou PREFEITURA.");
+        }
+        if (p.equals("PREFEITURA") && (codIbge == null || codIbge.isBlank())) {
+            throw new IllegalArgumentException("Escolha o município do usuário da prefeitura.");
+        }
+        boolean ficaAtivo = ativo == null ? atual.ativo() : ativo;
+        boolean deixaDeSerAdminAtivo = atual.admin() && atual.ativo() && (!p.equals("ADMIN") || !ficaAtivo);
+        if (deixaDeSerAdminAtivo && editor != null && editor.id() == id) {
+            throw new IllegalArgumentException("Você não pode tirar o próprio perfil de administrador nem se desativar.");
+        }
+        if (deixaDeSerAdminAtivo && repo.contarAdminsAtivos() <= 1) {
+            throw new IllegalArgumentException("É preciso manter pelo menos um administrador ativo.");
+        }
+        if (repo.emailEmUsoPorOutro(email.trim(), id)) {
+            throw new IllegalArgumentException("Já existe um usuário com esse e-mail.");
+        }
+        boolean admin = p.equals("ADMIN");
+        String cod = admin ? null : codIbge.trim();
+        String mun = admin ? null : municipio;
+        repo.atualizar(id, nome.trim(), email.trim(), p, cod, mun, ficaAtivo);
+        if (trocaSenha) {
+            repo.trocarSenha(id, bcrypt.encode(senha));
+        } else if (!ficaAtivo) {
+            repo.encerrarSessoes(id);
+        }
+        return new Usuario(id, nome.trim(), email.trim(), p, cod, mun, ficaAtivo);
     }
 
     public void trocarSenha(long usuarioId, String novaSenha) {
