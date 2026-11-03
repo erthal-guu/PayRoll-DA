@@ -28,7 +28,7 @@ final class Ferramentas {
                             "faixa", Map.of("type", "string", "enum", List.of("REGULAR", "ALERTA", "PRUDENCIAL", "ACIMA_LIMITE")),
                             "ordem", Map.of("type", "string", "enum", List.of("usoLimite", "percentual", "despesaTotal", "entidade", "municipio")),
                             "direcao", Map.of("type", "string", "enum", List.of("asc", "desc")),
-                            "limite", Map.of("type", "integer", "description", "Quantas linhas, até 20."))))),
+                            "limite", Map.of("type", "integer", "description", "Quantas linhas (padrão 8, até 20)."))))),
             Map.of("name", "evolucao_entidade",
                     "description", "Série dos últimos 12 períodos de uma entidade: despesa, RCL, percentual e limite.",
                     "parameters", Map.of("type", "object",
