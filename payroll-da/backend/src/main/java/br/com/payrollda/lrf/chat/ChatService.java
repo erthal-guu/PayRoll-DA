@@ -1,8 +1,12 @@
 package br.com.payrollda.lrf.chat;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +19,9 @@ import org.springframework.web.client.RestClientResponseException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import br.com.payrollda.lrf.dashboard.DashboardDtos;
+import br.com.payrollda.lrf.dashboard.DashboardDtos.EntidadeLinha;
+import br.com.payrollda.lrf.dashboard.DashboardDtos.PontoEvolucao;
 import br.com.payrollda.lrf.dashboard.DashboardRepository;
 import br.com.payrollda.lrf.dashboard.Filtro;
 
@@ -27,30 +34,33 @@ import br.com.payrollda.lrf.dashboard.Filtro;
 public class ChatService {
 
     private static final Logger log = LoggerFactory.getLogger(ChatService.class);
-    private static final int MAX_RODADAS = 6;
+    // cada rodada reenvia instruções, ferramentas, histórico e saídas anteriores; no plano gratuito do Groq
+    // (limite de tokens por minuto) poucas rodadas já estouram a cota
+    private static final int MAX_RODADAS = 4;
+    private static final int MAX_HISTORICO = 8;
+    private static final int MAX_CARACTERES_HISTORICO = 1200;
+    /** Espera máxima por tentativa quando o Groq responde 429; acima disso devolve a mensagem ao usuário. */
+    private static final double MAX_ESPERA_SEGUNDOS = 20;
+    private static final int MAX_TENTATIVAS_429 = 2;
+    private static final Pattern TEMPO_SUGERIDO = Pattern.compile("try again in (?:(\\d+)h)?(?:(\\d+)m(?!s))?(?:([\\d.]+)(ms|s))?");
 
     static final String INSTRUCOES = """
-            Você é o assistente do Payroll DA, que mostra a despesa com pessoal das prefeituras e câmaras
-            municipais do Paraná a partir do Demonstrativo da Despesa com Pessoal (RGF) do TCE-PR.
+            Você é o assistente do Payroll DA: despesa com pessoal das prefeituras e câmaras do Paraná, pelo RGF do TCE-PR.
 
-            Regras da LRF que você deve usar:
-            - Limite máximo: Executivo municipal 54% e Legislativo municipal 6% da receita corrente líquida (RCL) ajustada.
-            - Limite de alerta: 90% do máximo (48,6% e 5,4%). O Tribunal de Contas alerta o ente (art. 59, §1º, II).
-            - Limite prudencial: 95% do máximo (51,3% e 5,7%). Acima dele ficam vedados, entre outros, concessão de
-              vantagem ou reajuste (salvo revisão geral), criação de cargos, alteração de estrutura de carreira que
-              aumente despesa, novas admissões (salvo reposição em educação, saúde e segurança) e hora extra (art. 22).
-            - Acima do máximo: o excedente deve ser eliminado nos dois quadrimestres seguintes, pelo menos um terço no
-              primeiro, com medidas como reduzir em pelo menos 20% as despesas com cargos em comissão e funções de
-              confiança e exonerar servidores não estáveis (art. 23 e art. 169 da Constituição).
+            LRF (percentual da RCL ajustada; Executivo / Legislativo municipal):
+            - Máximo 54% / 6%. Acima: eliminar o excedente em dois quadrimestres, ao menos 1/3 no primeiro; ex.: cortar
+              20% ou mais de cargos em comissão e funções de confiança, exonerar não estáveis (art. 23; CF art. 169).
+            - Prudencial (95%): 51,3% / 5,7%. Vedados reajuste (salvo revisão geral), criação de cargos, mudança de
+              carreira que aumente despesa, admissões (salvo reposição em educação, saúde e segurança) e hora extra (art. 22).
+            - Alerta (90%): 48,6% / 5,4%; o Tribunal de Contas alerta o ente (art. 59, §1º, II).
 
             Como trabalhar:
-            - Para qualquer número, use as ferramentas. Nunca invente valores, nomes ou percentuais.
-            - Responda em português, direto e curto: no máximo uns 8 parágrafos curtos ou listas.
-            - Ao analisar uma entidade, diga a situação, a tendência dos últimos meses e a margem em reais até o
-              limite, e sugira medidas proporcionais à faixa. Deixe claro que são sugestões, não parecer jurídico.
-            - Quando um filtro, ordenação ou entidade no painel ajudar o usuário, chame sugerir_ajuste (até 3 vezes).
-              O usuário vê um botão "Aplicar"; não diga que você já mudou a tela.
-            - Valores em reais no formato brasileiro (R$ 1,2 mi), percentuais com vírgula (51,3%).
+            - Todo número vem das ferramentas; nunca invente valores, nomes ou percentuais. Chame só as necessárias.
+            - Responda em português, curto (até uns 6 parágrafos ou listas). Valores como R$ 1,2 mi e 51,3%.
+            - Sobre uma entidade: situação, tendência recente, margem em reais até o limite e medidas proporcionais à
+              faixa, como sugestões, não parecer jurídico.
+            - Se um filtro ou entidade no painel ajudar, chame sugerir_ajuste (até 3). O usuário vê um botão "Aplicar";
+              não diga que mudou a tela.
             """;
 
     private final DashboardRepository repo;
@@ -127,12 +137,15 @@ public class ChatService {
     private List<Map<String, Object>> montarMensagens(List<Mensagem> historico, Contexto contexto) {
         List<Map<String, Object>> msgs = new ArrayList<>();
         msgs.add(Map.of("role", "system", "content", INSTRUCOES));
-        // mantém só as últimas 12 mensagens para controlar custo
-        List<Mensagem> recentes = historico.subList(Math.max(0, historico.size() - 12), historico.size());
+        // mantém só as últimas mensagens, e as antigas encurtadas, para caber no limite de tokens por minuto
+        List<Mensagem> recentes = historico.subList(Math.max(0, historico.size() - MAX_HISTORICO), historico.size());
         for (int i = 0; i < recentes.size(); i++) {
             Mensagem m = recentes.get(i);
             String papel = "assistant".equals(m.papel()) ? "assistant" : "user";
-            String conteudo = m.texto();
+            String conteudo = m.texto() == null ? "" : m.texto();
+            if (i < recentes.size() - 1 && conteudo.length() > MAX_CARACTERES_HISTORICO) {
+                conteudo = conteudo.substring(0, MAX_CARACTERES_HISTORICO) + "…";
+            }
             if (i == recentes.size() - 1 && "user".equals(papel) && contexto != null) {
                 conteudo = "[Tela atual do painel: " + contexto.tela() + "; filtros: " + contexto.filtros()
                         + (contexto.entidadeId() != null ? "; entidade aberta no detalhe: id " + contexto.entidadeId() : "")
@@ -147,15 +160,38 @@ public class ChatService {
     }
 
     private JsonNode chamarApi(List<Map<String, Object>> mensagens) {
+        for (int tentativa = 0; ; tentativa++) {
+            try {
+                return chamarApiUmaVez(mensagens);
+            } catch (LimiteExcedido e) {
+                double espera = e.esperaSegundos;
+                if (tentativa >= MAX_TENTATIVAS_429 || espera < 0 || espera > MAX_ESPERA_SEGUNDOS) {
+                    throw new IllegalStateException(mensagemLimite(e.detalhe, espera));
+                }
+                log.info("Groq respondeu 429; aguardando {}s antes de tentar de novo.", espera);
+                try {
+                    Thread.sleep((long) (espera * 1000) + 500);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(mensagemLimite(e.detalhe, espera));
+                }
+            }
+        }
+    }
+
+    private JsonNode chamarApiUmaVez(List<Map<String, Object>> mensagens) {
         try {
             return enviar(mensagens);
         } catch (RestClientResponseException e) {
+            if (e.getStatusCode().value() == 429) {
+                throw limite(e);
+            }
             // o Groq aposenta modelos de tempos em tempos; se o configurado sumiu, troca por um disponível e tenta de novo
             if (e.getStatusCode().value() == 404 && trocarModelo()) {
                 try {
                     return enviar(mensagens);
                 } catch (RestClientResponseException e2) {
-                    throw falha(e2);
+                    throw e2.getStatusCode().value() == 429 ? limite(e2) : falha(e2);
                 }
             }
             throw falha(e);
@@ -163,12 +199,16 @@ public class ChatService {
     }
 
     private JsonNode enviar(List<Map<String, Object>> mensagens) {
-        Map<String, Object> corpo = Map.of(
+        Map<String, Object> corpo = new java.util.HashMap<>(Map.of(
                 "model", modelo,
                 "max_tokens", maxTokens,
                 "temperature", 0.3,
                 "tools", Ferramentas.DEFINICOES,
-                "messages", mensagens);
+                "messages", mensagens));
+        if (modelo.contains("gpt-oss")) {
+            // modelos de raciocínio: o raciocínio também conta no limite de tokens por minuto
+            corpo.put("reasoning_effort", "low");
+        }
         try {
             String resp = http.post()
                     .uri(url)
@@ -213,6 +253,76 @@ public class ChatService {
         }
     }
 
+    /** 429 do Groq, com o tempo de espera sugerido (-1 se não veio). */
+    static final class LimiteExcedido extends RuntimeException {
+        final double esperaSegundos;
+        final String detalhe;
+
+        LimiteExcedido(double esperaSegundos, String detalhe) {
+            super(detalhe);
+            this.esperaSegundos = esperaSegundos;
+            this.detalhe = detalhe;
+        }
+    }
+
+    private LimiteExcedido limite(RestClientResponseException e) {
+        String detalhe = "";
+        try {
+            detalhe = json.readTree(e.getResponseBodyAsString()).path("error").path("message").asText("");
+        } catch (Exception ignorado) {
+            // corpo sem JSON
+        }
+        log.warn("Groq atingiu o limite de uso: {}", detalhe);
+        String cabecalho = e.getResponseHeaders() == null ? null : e.getResponseHeaders().getFirst("retry-after");
+        return new LimiteExcedido(esperaSugerida(cabecalho, detalhe), detalhe);
+    }
+
+    /** Segundos de espera pelo cabeçalho retry-after ou pelo texto "try again in 1m2.5s"; -1 se não houver. */
+    static double esperaSugerida(String retryAfter, String detalhe) {
+        if (retryAfter != null) {
+            try {
+                return Double.parseDouble(retryAfter.trim());
+            } catch (NumberFormatException ignorado) {
+                // formato de data; tenta pelo texto
+            }
+        }
+        if (detalhe != null) {
+            Matcher m = TEMPO_SUGERIDO.matcher(detalhe);
+            if (m.find() && (m.group(1) != null || m.group(2) != null || m.group(3) != null)) {
+                double s = 0;
+                if (m.group(1) != null) {
+                    s += Integer.parseInt(m.group(1)) * 3600;
+                }
+                if (m.group(2) != null) {
+                    s += Integer.parseInt(m.group(2)) * 60;
+                }
+                if (m.group(3) != null) {
+                    double v = Double.parseDouble(m.group(3));
+                    s += "ms".equals(m.group(4)) ? v / 1000 : v;
+                }
+                return s;
+            }
+        }
+        return -1;
+    }
+
+    static String mensagemLimite(String detalhe, double espera) {
+        boolean diario = detalhe != null && detalhe.contains("per day");
+        String quando;
+        if (espera < 0) {
+            quando = "Aguarde um pouco";
+        } else if (espera < 90) {
+            quando = "Aguarde cerca de " + Math.max(1, (long) Math.ceil(espera)) + " segundos";
+        } else {
+            quando = "Aguarde cerca de " + (long) Math.ceil(espera / 60) + " minutos";
+        }
+        return diario
+                ? "O assistente atingiu o limite diário de uso do plano gratuito da IA. " + quando
+                        + " e tente de novo, ou configure um modelo com cota maior."
+                : "O assistente recebeu muitas perguntas em pouco tempo e atingiu o limite de uso por minuto do plano "
+                        + "gratuito da IA. " + quando + " e envie a pergunta de novo.";
+    }
+
     private IllegalStateException falha(RestClientResponseException e) {
         log.warn("API do Groq respondeu {}: {}", e.getStatusCode(), e.getResponseBodyAsString());
         String detalhe = "";
@@ -229,13 +339,13 @@ public class ChatService {
         return switch (nome) {
             case "resumo_painel" -> json.writeValueAsString(repo.resumo(periodo(filtro(in, false))));
             case "buscar_entidades" -> {
-                int limite = Math.min(Math.max(in.path("limite").asInt(10), 1), 20);
-                yield json.writeValueAsString(repo.entidades(periodo(filtro(in, true)),
+                int limite = Math.min(Math.max(in.path("limite").asInt(8), 1), 20);
+                yield tabelaEntidades(repo.entidades(periodo(filtro(in, true)),
                         texto(in, "ordem", "usoLimite"), texto(in, "direcao", "desc"), 0, limite));
             }
             case "evolucao_entidade" -> {
                 var serie = repo.evolucaoEntidade(in.path("entidadeId").asLong());
-                yield json.writeValueAsString(serie.subList(Math.max(0, serie.size() - 12), serie.size()));
+                yield tabelaEvolucao(serie.subList(Math.max(0, serie.size() - 12), serie.size()));
             }
             case "sugerir_ajuste" -> {
                 if (sugestoes.size() >= 3) {
@@ -249,6 +359,39 @@ public class ChatService {
             }
             default -> throw new IllegalArgumentException("Ferramenta desconhecida: " + nome);
         };
+    }
+
+    // saídas em tabela (cabeçalho + linhas separadas por ;) em vez de JSON: repetir as chaves em cada linha
+    // gastava a maior parte dos tokens das rodadas seguintes
+
+    static String tabelaEntidades(DashboardDtos.Pagina<EntidadeLinha> p) {
+        StringBuilder sb = new StringBuilder("total=").append(p.total()).append(" mostrando=").append(p.itens().size())
+                .append("\nid;municipio;entidade;poder;despesa_rs;rcl_rs;pct_rcl;limite_max_pct;faixa");
+        for (EntidadeLinha e : p.itens()) {
+            sb.append('\n').append(e.entidadeId()).append(';').append(e.municipio()).append(';').append(e.entidade())
+                    .append(';').append(e.poder()).append(';').append(inteiro(e.despesaTotal())).append(';')
+                    .append(inteiro(e.rclAjustada())).append(';').append(decimal(e.percentual())).append(';')
+                    .append(decimal(e.limiteMaximo())).append(';').append(e.faixa());
+        }
+        return sb.toString();
+    }
+
+    static String tabelaEvolucao(List<PontoEvolucao> serie) {
+        StringBuilder sb = new StringBuilder("ano;mes;despesa_rs;rcl_rs;pct_rcl;limite_max_pct");
+        for (PontoEvolucao p : serie) {
+            sb.append('\n').append(p.ano()).append(';').append(p.mes()).append(';').append(inteiro(p.despesaTotal()))
+                    .append(';').append(inteiro(p.rclAjustada())).append(';').append(decimal(p.percentual()))
+                    .append(';').append(decimal(p.limiteMaximo()));
+        }
+        return sb.toString();
+    }
+
+    private static String inteiro(BigDecimal v) {
+        return v == null ? "" : v.setScale(0, RoundingMode.HALF_UP).toPlainString();
+    }
+
+    private static String decimal(BigDecimal v) {
+        return v == null ? "" : v.setScale(2, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString();
     }
 
     private Filtro filtro(JsonNode in, boolean comFaixa) {

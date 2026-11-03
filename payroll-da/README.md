@@ -117,6 +117,14 @@ $env:GROQ_API_KEY = "gsk_..."                  # nunca vai para o front nem para
 $env:GROQ_MODELO = "llama-3.3-70b-versatile"   # opcional
 ```
 
+Se o modelo configurado for aposentado pelo Groq (HTTP 404), o servidor escolhe outro da lista do Groq e registra no
+log qual passou a usar (por exemplo `openai/gpt-oss-120b`); defina `GROQ_MODELO` para fixar um.
+
+No plano gratuito o Groq limita os tokens por minuto (8.000 no `openai/gpt-oss-120b`). Para caber nesse limite o
+assistente usa no máximo 4 rodadas de ferramentas por pergunta, envia só as últimas 8 mensagens da conversa e devolve
+as ferramentas em tabela compacta. Se ainda assim o Groq responder 429, o servidor espera o tempo sugerido (até 20 s)
+e tenta de novo; se a espera for maior, o usuário vê uma mensagem pedindo para aguardar.
+
 ## API do dashboard
 
 Todos aceitam `ano`, `mes`, `poder` (`EXECUTIVO`/`LEGISLATIVO`), `codIbge` e `busca`. Sem `ano`/`mes`, usa o período mais recente.
