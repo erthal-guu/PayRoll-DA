@@ -53,9 +53,14 @@ public class SimamService {
         if (selecao.get("periodo") != null && !selecao.get("periodo").isBlank()) {
             return consultarPeriodo(selecao);
         }
+        java.time.LocalDate hoje = java.time.LocalDate.now();
+        boolean anoCorrente = String.valueOf(hoje.getYear()).equals(selecao.get("ano"));
+        // no ano corrente, os meses que ainda não terminaram não têm relatório publicado
         List<SimamClient.Opcao> periodos = client.filtros(selecao).stream()
                 .filter(f -> f.chave().equals("periodo") && f.habilitado())
-                .findFirst().map(SimamClient.Filtro::opcoes).orElse(List.of());
+                .findFirst().map(SimamClient.Filtro::opcoes).orElse(List.of()).stream()
+                .filter(o -> !anoCorrente || RelatorioRgfParser.mesDoPeriodo(o.rotulo()) < hoje.getMonthValue())
+                .toList();
         if (periodos.isEmpty()) {
             return consultarPeriodo(selecao);
         }

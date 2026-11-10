@@ -9,8 +9,11 @@ const CLASSE = { tipo: '', municipio: 'largo', entidade: 'inteiro', relatorio: '
 const sem = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 // o sistema só sabe ler o Demonstrativo da Despesa com Pessoal; os outros relatórios do SIMAM não são mostrados
 const relatorioAceito = (o) => sem(o.rotulo).includes('despesa com pessoal')
-// Tipo fica fixo em Município e o período não é escolhido: o backend importa todos os períodos publicados no ano
-const OCULTOS = ['tipo', 'periodo']
+// Tipo fica fixo em Município, a entidade é a do próprio município (ex.: "MUNICÍPIO DE CANTAGALO"), o relatório é o RGF
+// da despesa com pessoal (traz a despesa, a RCL ajustada e o índice da LRF) e o período não é escolhido: o backend
+// importa todos os meses publicados no ano
+const OCULTOS = ['tipo', 'entidade', 'relatorio', 'periodo']
+const entidadeDoMunicipio = (opcoes) => opcoes.find((o) => /^(municipio|prefeitura municipal) de /.test(sem(o.rotulo).trim()))
 
 export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPara }) {
   const [selecao, setSelecao] = useState({})
@@ -35,11 +38,23 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
     return () => { atual = false }
   }, [selecao, tentativa])
 
-  // o Tipo não aparece na tela: se o SIMAM não trouxer Município escolhido, escolhe sozinho
+  // Tipo e Entidade não aparecem na tela: o sistema escolhe Município e a entidade do município selecionado
   useEffect(() => {
     const tipo = filtros.find((f) => f.chave === 'tipo')
     const municipio = tipo?.opcoes.find((o) => sem(o.rotulo).trim() === 'municipio')
-    if (tipo?.habilitado && municipio && tipo.valor !== municipio.valor && selecao.tipo !== municipio.valor) escolher('tipo', municipio.valor)
+    if (tipo?.habilitado && municipio && tipo.valor !== municipio.valor && selecao.tipo !== municipio.valor) {
+      escolher('tipo', municipio.valor)
+      return
+    }
+    const entidade = filtros.find((f) => f.chave === 'entidade')
+    const doMunicipio = entidade?.habilitado && entidadeDoMunicipio(entidade.opcoes)
+    if (doMunicipio && !entidade.valor && selecao.entidade !== doMunicipio.valor) {
+      escolher('entidade', doMunicipio.valor)
+      return
+    }
+    const relatorio = filtros.find((f) => f.chave === 'relatorio')
+    const rgf = relatorio?.habilitado && relatorio.opcoes.find(relatorioAceito)
+    if (rgf && !relatorio.valor && selecao.relatorio !== rgf.valor) escolher('relatorio', rgf.valor)
   }, [filtros])
 
   function escolher(chave, valor) {
@@ -144,7 +159,9 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
       )}
       <form className={`panel form-consulta ${carregandoFiltros ? 'carregando' : ''}`} onSubmit={consultar}>
         {carregandoFiltros && !filtros.length && [0, 1, 2, 3].map((i) => <div key={i} className="campo esqueleto" />)}
-        {filtros.filter((f) => !OCULTOS.includes(f.chave)).map((f) => ({ ...f, opcoes: f.chave === 'relatorio' && f.opcoes.some(relatorioAceito) ? f.opcoes.filter(relatorioAceito) : f.opcoes })).map((f, i) => (
+        {filtros.filter((f) => !OCULTOS.includes(f.chave)
+          || (f.chave === 'entidade' && f.habilitado && f.opcoes.length > 0 && !entidadeDoMunicipio(f.opcoes))
+          || (f.chave === 'relatorio' && f.habilitado && f.opcoes.length > 0 && !f.opcoes.some(relatorioAceito))).map((f) => ({ ...f, opcoes: f.chave === 'relatorio' && f.opcoes.some(relatorioAceito) ? f.opcoes.filter(relatorioAceito) : f.opcoes })).map((f, i) => (
           <label key={f.chave} className={`campo ${CLASSE[f.chave] ?? ''}`} htmlFor={`c-${f.chave}`}>
             <span><b className="passo">{i + 1}</b>{f.rotulo}</span>
             <select id={`c-${f.chave}`} value={f.valor} disabled={!f.habilitado || etapa >= 0}
@@ -155,7 +172,7 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
           </label>
         ))}
         {filtros.some((f) => f.chave === 'relatorio' && f.opcoes.some(relatorioAceito)) && (
-          <div className="inteiro hint">Só aparece o relatório que o sistema sabe ler: o Demonstrativo da Despesa com Pessoal (RGF). Todos os períodos publicados no ano escolhido são importados.</div>
+          <div className="inteiro hint">O sistema usa a entidade do próprio município e o RGF da despesa com pessoal, que traz a despesa total, a receita corrente líquida ajustada e o índice da LRF. Todos os meses publicados no ano escolhido são importados, o que pode levar alguns minutos.</div>
         )}
         <div className="inteiro acoes-consulta">
           <button className="btn" type="submit" disabled={etapa >= 0 || !completo}>{etapa >= 0 ? 'Analisando…' : 'Analisar e importar'}</button>

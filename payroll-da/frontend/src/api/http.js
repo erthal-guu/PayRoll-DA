@@ -96,10 +96,10 @@ export const api = {
   simamFiltros: (selecao) => req('/api/simam/filtros', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ selecao }),
   }, 170000),
-  // sem período, o backend consulta cada período do ano (até 150 s cada)
+  // sem período, o backend consulta cada mês do ano (até 150 s cada)
   consultarSimam: (selecao) => req('/api/simam/consultar', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ selecao }),
-  }, 600000),
+  }, 1800000),
   async simamDiagnostico() {
     const resp = await fetch(`${BASE}/api/simam/diagnostico`, comToken())
     if (!resp.ok) throw new Error('Não foi possível gerar o diagnóstico.')
