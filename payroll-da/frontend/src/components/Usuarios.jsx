@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/index.js'
 
+const iniciais = (nome) => (nome || '?').trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase()
+
 const VAZIO = { nome: '', email: '', senha: '', perfil: 'PREFEITURA', codIbge: '', ativo: true }
 
 export default function Usuarios({ usuario, municipios }) {
@@ -75,10 +77,11 @@ export default function Usuarios({ usuario, municipios }) {
         <div className="sub">Administradores veem todos os municípios e importam dados. Usuários de prefeitura veem só o próprio município.</div>
       </div>
       {erro && <div className="erro">{erro}</div>}
-      {aviso && <div className="panel">{aviso}</div>}
+      {aviso && <div className="aviso-ok">{aviso}</div>}
 
+      <div className={usuario.perfil === 'ADMIN' ? 'usuarios-grade' : ''}>
+      <div className="usuarios-lateral">
       {usuario.perfil === 'ADMIN' && (
-        <div className="grade">
           <form className="panel form-usuario" onSubmit={salvar}>
             <div className="panel-head"><h2>{editando ? 'Editar usuário' : 'Novo usuário'}</h2></div>
             <label className="campo">Nome<input required {...campo('nome')} /></label>
@@ -110,24 +113,37 @@ export default function Usuarios({ usuario, municipios }) {
               {editando && <button type="button" className="btn ghost" onClick={cancelar}>Cancelar</button>}
             </div>
           </form>
+      )}
 
-          <div className="panel">
-            <div className="panel-head"><h2>Cadastrados</h2></div>
+      <form className="panel form-usuario" onSubmit={trocarSenha}>
+        <div className="panel-head"><h2>Minha senha</h2><span className="hint">{usuario.email}</span></div>
+        <label className="campo">Nova senha<input type="password" required minLength={6} autoComplete="new-password" value={senha} onChange={(e) => setSenha(e.target.value)} /></label>
+        <button className="btn">Trocar senha</button>
+      </form>
+      </div>
+
+      {usuario.perfil === 'ADMIN' && (
+          <div className="panel lista-usuarios">
+            <div className="panel-head"><h2>Cadastrados</h2><span className="hint">{lista.length} {lista.length === 1 ? 'usuário' : 'usuários'}</span></div>
             <div className="tabela-wrap">
               <table>
-                <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Município</th><th>Situação</th><th /></tr></thead>
+                <thead><tr><th>Usuário</th><th>Perfil</th><th>Município</th><th>Situação</th><th className="n">Ações</th></tr></thead>
                 <tbody>
                   {lista.map((u) => (
-                    <tr key={u.id}>
-                      <td>{u.nome}</td>
-                      <td>{u.email}</td>
-                      <td>{u.perfil === 'ADMIN' ? 'Administrador' : 'Prefeitura'}</td>
-                      <td>{u.municipio || (u.perfil === 'ADMIN' ? 'Todos' : u.codIbge)}</td>
-                      <td>{u.ativo ? 'Ativo' : 'Inativo'}</td>
+                    <tr key={u.id} className={editando?.id === u.id ? 'editando' : ''}>
                       <td>
+                        <span className="usuario-cel">
+                          <span className="avatar">{iniciais(u.nome)}</span>
+                          <span className="quem"><b>{u.nome}{u.id === usuario.id && <em> (você)</em>}</b><small>{u.email}</small></span>
+                        </span>
+                      </td>
+                      <td><span className={`etiqueta ${u.perfil === 'ADMIN' ? 'admin' : 'prefeitura'}`}>{u.perfil === 'ADMIN' ? 'Administrador' : 'Prefeitura'}</span></td>
+                      <td>{u.municipio || (u.perfil === 'ADMIN' ? 'Todos' : u.codIbge)}</td>
+                      <td><span className={`situacao ${u.ativo ? 'ativo' : 'inativo'}`}>{u.ativo ? 'Ativo' : 'Inativo'}</span></td>
+                      <td className="n">
                         <span className="acoes-usuario">
-                          <button className="link" onClick={() => editar(u)}>Editar</button>
-                          {u.id !== usuario.id && <button className="link" onClick={() => remover(u)}>Remover</button>}
+                          <button className="btn-mini" onClick={() => editar(u)}>Editar</button>
+                          {u.id !== usuario.id && <button className="btn-mini perigo" onClick={() => remover(u)}>Remover</button>}
                         </span>
                       </td>
                     </tr>
@@ -136,14 +152,8 @@ export default function Usuarios({ usuario, municipios }) {
               </table>
             </div>
           </div>
-        </div>
       )}
-
-      <form className="panel form-usuario" onSubmit={trocarSenha}>
-        <div className="panel-head"><h2>Minha senha</h2><span className="hint">{usuario.email}</span></div>
-        <label className="campo">Nova senha<input type="password" required minLength={6} autoComplete="new-password" value={senha} onChange={(e) => setSenha(e.target.value)} /></label>
-        <button className="btn">Trocar senha</button>
-      </form>
+      </div>
     </>
   )
 }

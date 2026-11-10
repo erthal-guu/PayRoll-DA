@@ -267,7 +267,34 @@ table.demonstrativo tr.forte td:first-child { padding-left: 12px; }
 .form-usuario .btn { align-self: flex-start; }
 .form-usuario .acoes-form { display: flex; gap: 10px; }
 .form-usuario .campo-check { display: flex; align-items: center; gap: 8px; font-size: 14px; }
-.acoes-usuario { display: inline-flex; gap: 12px; }
+.acoes-usuario { display: inline-flex; gap: 8px; }
+/* tela de Usuários: formulários numa coluna lateral e a lista ao lado, sem rolagem lateral */
+.usuarios-grade { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 18px; align-items: start; }
+.usuarios-lateral { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.usuarios-lateral > .panel { align-self: stretch; }
+.usuarios-lateral .form-usuario .btn { align-self: stretch; }
+.usuarios-lateral .acoes-form .btn { flex: 1; }
+.lista-usuarios tbody tr { cursor: default; }
+.lista-usuarios tbody tr.editando td { background: var(--accent-dim); }
+.lista-usuarios td { vertical-align: middle; }
+.usuario-cel { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.usuario-cel .avatar { width: 36px; height: 36px; font-size: 13px; }
+.usuario-cel .quem { display: flex; flex-direction: column; min-width: 0; }
+.usuario-cel .quem b { font-weight: 600; }
+.usuario-cel .quem em { font-style: normal; font-weight: 500; color: var(--muted); }
+.usuario-cel .quem small { color: var(--muted); font-size: 12.5px; }
+.etiqueta { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+.etiqueta.admin { background: var(--accent-dim); color: var(--accent); }
+.etiqueta.prefeitura { background: #e8f6ff; color: #0369a1; }
+.situacao { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+.situacao::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.situacao.ativo { color: var(--good); }
+.situacao.inativo { color: var(--muted); }
+.btn-mini { padding: 5px 12px; border: 1px solid var(--line-2); border-radius: 9px; background: var(--panel); color: var(--fg); font-size: 13px; font-weight: 600; cursor: pointer; transition: border-color .2s, color .2s, background .2s; }
+.btn-mini:hover { border-color: var(--accent); color: var(--accent); }
+.btn-mini.perigo:hover { border-color: var(--bad); color: var(--bad); background: #fef2f2; }
+.aviso-ok { padding: 12px 16px; border-radius: 12px; background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; animation: surgir .3s ease both; }
+@media (max-width: 1100px) { .usuarios-grade { grid-template-columns: minmax(0, 1fr); } .usuarios-grade .lista-usuarios { order: -1; } }
 
 /* Detalhe da entidade */
 .detalhe { border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); box-shadow: 0 0 0 4px var(--accent-dim), var(--sombra-alta); }
