@@ -112,11 +112,25 @@ function Painel({ usuario, sair }) {
       ano: Number(f.ano) || filtros.ano, mes: Number(f.mes) || filtros.mes,
       poder: f.poder || null, codIbge: f.codIbge || null, faixa: f.faixa || null, busca: f.busca || null,
     }
-    if (Object.keys(f).length) setFiltros(novo)
+    let d = null
     if (s.entidadeId) {
-      try { abrirEntidade(await api.demonstrativo(s.entidadeId, novo.ano, novo.mes)) } catch { /* entidade sem dado no período */ }
+      try { d = await api.demonstrativo(s.entidadeId, novo.ano, novo.mes) } catch { /* entidade sem dado no período */ }
+      if (!d) {
+        // sem dado no período do filtro: usa o último período da entidade
+        try {
+          const ultimo = (await api.evolucaoEntidade(s.entidadeId)).at(-1)
+          if (ultimo) {
+            d = await api.demonstrativo(s.entidadeId, ultimo.ano, ultimo.mes)
+            novo.ano = ultimo.ano; novo.mes = ultimo.mes
+          }
+        } catch { /* entidade sem demonstrativo */ }
+      }
     }
-    irPara(TELAS[s.tela] ? s.tela : 'dashboard')
+    // sugestão de uma entidade (ex.: "Ver detalhe de Jussara"): o dashboard abre com o município dela selecionado
+    if (d?.codIbge) novo.codIbge = d.codIbge
+    if (Object.keys(f).length || d) setFiltros(novo)
+    if (d) abrirEntidade(d)
+    irPara(d ? 'dashboard' : TELAS[s.tela] ? s.tela : 'dashboard')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
