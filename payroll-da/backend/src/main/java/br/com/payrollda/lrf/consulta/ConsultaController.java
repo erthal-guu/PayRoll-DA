@@ -51,7 +51,12 @@ public class ConsultaController {
     public record Pedido(String codIbge, Long entidadeId, Integer ano, Integer mes) {
     }
 
-    public record Resposta(ImportacaoDto importacao, Demonstrativo demonstrativo, String excelUrl, String mensagem) {
+    /** fundeb vem preenchido só na importação do RREO MDE (transferências do FUNDEB). */
+    public record Resposta(ImportacaoDto importacao, Demonstrativo demonstrativo, String excelUrl, String mensagem,
+                           br.com.payrollda.lrf.fundeb.FundebRepository.Ano fundeb) {
+        public Resposta(ImportacaoDto importacao, Demonstrativo demonstrativo, String excelUrl, String mensagem) {
+            this(importacao, demonstrativo, excelUrl, mensagem, null);
+        }
     }
 
     @PostMapping

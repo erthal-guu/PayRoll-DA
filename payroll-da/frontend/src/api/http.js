@@ -111,6 +111,7 @@ export const api = {
     const nome = /filename\*?=(?:UTF-8'')?"?([^";]+)/i.exec(resp.headers.get('Content-Disposition') || '')?.[1]
     return { blob: await resp.blob(), nome: nome ? decodeURIComponent(nome) : `RGF_pessoal_${ano}-${mes}.xlsx` }
   },
+  fundeb: (codIbge) => req(`/api/fundeb/${codIbge}`),
   professoresPisos: () => req('/api/professores/pisos'),
   salvarPiso: (ano, piso) => req(`/api/professores/pisos/${ano}`, { ...json(piso), method: 'PUT' }),
   professoresPlanos: () => req('/api/professores/planos'),

@@ -11,15 +11,14 @@ const sem = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCas
 const relatorioAceito = (o) => sem(o.rotulo).includes('despesa com pessoal')
 /**
  * Relatórios da análise financeira do município (os mesmos do relatório de análise do PSPN). RCL ajustada, despesa total
- * com pessoal e índice da LRF vêm do mesmo demonstrativo do RGF no SIMAM; o FUNDEB vem do RREO, que o sistema ainda
- * não lê (fica visível, mas desabilitado).
+ * com pessoal e índice da LRF vêm do mesmo demonstrativo do RGF no SIMAM; o FUNDEB vem do demonstrativo MDE do RREO.
  */
 const TIPOS = [
   { id: 'rcl', rotulo: 'RREO – Receita Corrente Líquida Ajustada', simam: relatorioAceito },
   { id: 'dtp', rotulo: 'RGF – Despesa Total com Pessoal', simam: relatorioAceito },
   { id: 'lrf', rotulo: 'LRF – Índice de Responsabilidade Fiscal', simam: relatorioAceito },
   // no SIMAM, as transferências do FUNDEB estão no demonstrativo de Manutenção e Desenvolvimento do Ensino (MDE)
-  { id: 'fundeb', rotulo: 'RREO – Transferências do FUNDEB', simam: (o) => sem(o.rotulo).includes('desenvolvimento do ensino'), pendente: 'leitura em desenvolvimento' },
+  { id: 'fundeb', rotulo: 'RREO – Transferências do FUNDEB', simam: (o) => sem(o.rotulo).includes('desenvolvimento do ensino') },
 ]
 // Tipo fica fixo em Município, a entidade é a do próprio município (ex.: "MUNICÍPIO DE CANTAGALO") e o período não é
 // escolhido: o backend importa todos os meses publicados no ano
@@ -134,6 +133,7 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
   }
 
   const d = resultado?.demonstrativo
+  const fb = resultado?.fundeb
   const linhas = d ? [
     ['Despesa bruta com pessoal (I)', moedaCheia(d.despesaBruta), true],
     ['Pessoal ativo', moedaCheia(d.pessoalAtivo)],
@@ -199,7 +199,9 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
           </label>
         ))}
         {filtros.some((f) => f.chave === 'relatorio' && f.opcoes.some(relatorioAceito)) && (
-          <div className="inteiro hint">RCL ajustada, despesa total com pessoal e índice da LRF vêm do mesmo demonstrativo do RGF no SIMAM; o sistema usa a entidade do próprio município. Todos os meses publicados no ano escolhido são importados, o que pode levar alguns minutos.</div>
+          <div className="inteiro hint">{tipo === 'fundeb'
+            ? 'As transferências do FUNDEB vêm do demonstrativo de Manutenção e Desenvolvimento do Ensino (MDE) do RREO. Os valores são acumulados no ano, então o sistema importa o último bimestre publicado.'
+            : 'RCL ajustada, despesa total com pessoal e índice da LRF vêm do mesmo demonstrativo do RGF no SIMAM; o sistema usa a entidade do próprio município. Todos os meses publicados no ano escolhido são importados, o que pode levar alguns minutos.'}</div>
         )}
         <div className="inteiro acoes-consulta">
           <button className="btn" type="submit" disabled={etapa >= 0 || !completo}>{etapa >= 0 ? 'Analisando…' : 'Analisar e importar'}</button>
@@ -227,7 +229,42 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
       </>
       )}
 
-      {resultado && !d && (
+      {resultado && fb && (
+        <div className="panel">
+          <div className="panel-head">
+            <div>
+              <h2>Município de {fb.municipio}</h2>
+              <div className="hint"><b>RREO – Transferências do FUNDEB</b></div>
+              <div className="hint">Ano {fb.ano} · {fb.mesFinal === 12 ? 'ano completo' : `acumulado até ${MESES[fb.mesFinal - 1]}`} ({fb.periodo})</div>
+            </div>
+          </div>
+          {resultado.mensagem && <p className="hint" style={{ marginTop: 0 }}>{resultado.mensagem}</p>}
+          <div className="destaques">
+            <div className="destaque"><span>Transferências do FUNDEB</span><strong>{moedaCheia(fb.transferido)}</strong><small>recebidas pelo município no período</small></div>
+            {fb.receitasDestinadas != null && <div className="destaque"><span>Receitas destinadas ao FUNDEB</span><strong>{moedaCheia(fb.receitasDestinadas)}</strong><small>contribuição do município ao fundo</small></div>}
+            {fb.resultadoLiquido != null && <div className="destaque"><span>Resultado líquido das transferências</span><strong className={fb.resultadoLiquido >= 0 ? 'sobe' : 'desce'}>{moedaCheia(fb.resultadoLiquido)}</strong><small>{fb.resultadoLiquido >= 0 ? 'o município recebeu mais do que contribuiu' : 'o município contribuiu mais do que recebeu'}</small></div>}
+          </div>
+          <div className="tabela-wrap">
+            <table className="demonstrativo">
+              <tbody>
+                {[
+                  ['Receitas destinadas ao FUNDEB', fb.receitasDestinadas, true],
+                  ['Receitas recebidas do FUNDEB', fb.receitasRecebidas, true],
+                  ['Complementação da União', fb.complementacaoUniao],
+                  ['Resultado líquido das transferências', fb.resultadoLiquido, true],
+                  ['Pagamento dos profissionais (liquidado)', fb.despesasProfissionais],
+                  ['Total das despesas do FUNDEB (liquidado)', fb.totalDespesas],
+                ].filter(([, v]) => v != null).map(([rot, v, forte]) => (
+                  <tr key={rot} className={forte ? 'forte' : ''}><td>{rot}</td><td className="n">{moedaCheia(v)}</td></tr>
+                ))}
+                {fb.percentualProfissionais != null && <tr><td>Parcela do FUNDEB aplicada nos profissionais</td><td className="n">{pct(fb.percentualProfissionais)}</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {resultado && !d && !fb && (
         <div className="panel sem-simam consulta-falhou">
           <div className="panel-head"><h2>A consulta não trouxe o demonstrativo</h2></div>
           <p className="erro">{resultado.mensagem || 'O SIMAM não devolveu dados para esses filtros.'}</p>
