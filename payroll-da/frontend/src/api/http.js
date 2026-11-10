@@ -108,8 +108,13 @@ export const api = {
   async excel({ entidadeId, ano, mes }) {
     const resp = await fetch(`${BASE}/api/consultas/excel${query({ entidadeId, ano, mes })}`, comToken())
     if (!resp.ok) throw new Error('Não foi possível gerar o Excel.')
-    const nome = /filename\*?=(?:UTF-8'')?"?([^";]+)/i.exec(resp.headers.get('Content-Disposition') || '')?.[1]
-    return { blob: await resp.blob(), nome: nome ? decodeURIComponent(nome) : `RGF_pessoal_${ano}-${mes}.xlsx` }
+    // o backend manda filename="=?UTF-8?Q?...?=" (codificado) e filename*=UTF-8''... (o nome real): vale o filename*
+    const cd = resp.headers.get('Content-Disposition') || ''
+    const estendido = /filename\*=(?:UTF-8'')?"?([^";]+)/i.exec(cd)?.[1]
+    const simples = /filename="?([^";]+)/i.exec(cd)?.[1]
+    let nome = estendido ? decodeURIComponent(estendido) : simples
+    if (!nome || nome.startsWith('=?')) nome = `RGF_pessoal_${ano}-${String(mes).padStart(2, '0')}.xlsx`
+    return { blob: await resp.blob(), nome }
   },
   fundeb: (codIbge) => req(`/api/fundeb/${codIbge}`),
   professoresPisos: () => req('/api/professores/pisos'),
