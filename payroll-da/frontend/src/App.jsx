@@ -144,7 +144,7 @@ function Painel({ usuario, sair }) {
         <div className="logo"><span className="marca" aria-hidden="true" /><span>Payroll <b>DA</b><small>Despesa com pessoal · LRF · PR</small></span></div>
         <div className="secao-menu">Menu</div>
         <nav className="nav" aria-label="Menu principal">
-          {Object.entries(TELAS).map(([k, nome]) => (
+          {Object.entries(TELAS).filter(([k]) => k !== 'importacao').map(([k, nome]) => (
             <button key={k} aria-current={tela === k ? 'page' : undefined} onClick={() => irPara(k)}>
               <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path d={ICONES[k]} fill="currentColor" /></svg>{nome}
             </button>
