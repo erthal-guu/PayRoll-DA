@@ -33,8 +33,10 @@ export default function AnaliseMunicipio({ codIbge, nomeMunicipio, periodo, vers
   const evolucao = useCarregar(() => (prefeitura ? api.evolucaoEntidade(prefeitura.id) : []), [prefeitura?.id, versao])
   const fundeb = useCarregar(() => api.fundeb(codIbge), [codIbge, versao])
 
-  const fAnos = (fundeb.dados || []).map((a) => ({ ...a, transferido: n(a.transferido) })).filter((a) => a.transferido)
-  const serie = prefeitura ? (evolucao.dados || []).map((p) => ({ ...p, despesaTotal: n(p.despesaTotal), rclAjustada: n(p.rclAjustada), percentual: n(p.percentual) })) : []
+  // com o ano escolhido no filtro, a análise vai até ele (o histórico e o FUNDEB não mostram anos posteriores)
+  const ateAno = (p) => !periodo || p.ano <= periodo.ano
+  const fAnos = (fundeb.dados || []).map((a) => ({ ...a, transferido: n(a.transferido) })).filter((a) => a.transferido && ateAno(a))
+  const serie = prefeitura ? (evolucao.dados || []).filter((p) => ateAno(p) && (!periodo || p.ano < periodo.ano || p.mes <= periodo.mes)).map((p) => ({ ...p, despesaTotal: n(p.despesaTotal), rclAjustada: n(p.rclAjustada), percentual: n(p.percentual) })) : []
   if (!serie.length) {
     return fAnos.length ? (
       <div className="panel analise-municipio">
