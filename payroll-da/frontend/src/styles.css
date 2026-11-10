@@ -490,3 +490,15 @@ table.demonstrativo tr.forte td:first-child { padding-left: 12px; }
 .analise-municipio .fundeb { margin-top: 20px; }
 .fundeb-anos th { font-size: 12px; color: var(--muted); font-weight: 700; padding: 6px 10px; white-space: nowrap; }
 .fundeb-anos td { white-space: nowrap; }
+
+/* força e confirmação da senha */
+.forca-senha { display: flex; flex-direction: column; gap: 6px; margin-top: -4px; }
+.forca-barras { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.forca-barras span { height: 5px; border-radius: 3px; background: var(--line); transition: background .25s; }
+.forca-senha small { font-size: 12px; color: var(--muted); }
+.forca-senha.fraca .cheia { background: var(--bad); } .forca-senha.fraca b { color: var(--bad); }
+.forca-senha.media .cheia { background: var(--warn); } .forca-senha.media b { color: #b7791f; }
+.forca-senha.forte .cheia { background: var(--good); } .forca-senha.forte b { color: var(--good); }
+.forca-senha.muito-forte .cheia { background: #059669; } .forca-senha.muito-forte b { color: #059669; }
+.campo input.invalido { border-color: var(--bad); box-shadow: 0 0 0 3px #fee2e2; }
+.erro-campo { margin-top: -6px; font-size: 12px; font-weight: 600; color: var(--bad); }
