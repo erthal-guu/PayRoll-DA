@@ -53,7 +53,7 @@ export default function Importacao({ aoImportar }) {
     <>
       <div>
         <h1>Importar CSV</h1>
-        <div className="sub">Importação manual: você baixa o CSV no SIMAM e envia para a base. Para o sistema buscar sozinho, use a <b>Consulta automática</b>.</div>
+        <div className="sub">Importação manual: você baixa o CSV no SIMAM e envia para a base. Para o sistema buscar sozinho, use a tela <b>Analisar município</b>.</div>
       </div>
       {erro && <div className="erro">{erro}</div>}
       <div className="grade">

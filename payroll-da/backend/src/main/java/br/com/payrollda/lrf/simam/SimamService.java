@@ -45,7 +45,63 @@ public class SimamService {
         return client.filtros(selecao);
     }
 
+    /**
+     * Sem período na seleção, importa todos os períodos que o SIMAM oferece para o ano escolhido e devolve o último
+     * que trouxe demonstrativo (o mais recente). Com período, faz a consulta de um período só.
+     */
     public Resposta consultar(Map<String, String> selecao) throws IOException, InterruptedException {
+        if (selecao.get("periodo") != null && !selecao.get("periodo").isBlank()) {
+            return consultarPeriodo(selecao);
+        }
+        java.time.LocalDate hoje = java.time.LocalDate.now();
+        boolean anoCorrente = String.valueOf(hoje.getYear()).equals(selecao.get("ano"));
+        // no ano corrente, os meses que ainda não terminaram não têm relatório publicado
+        List<SimamClient.Opcao> periodos = client.filtros(selecao).stream()
+                .filter(f -> f.chave().equals("periodo") && f.habilitado())
+                .findFirst().map(SimamClient.Filtro::opcoes).orElse(List.of()).stream()
+                .filter(o -> !anoCorrente || RelatorioRgfParser.mesDoPeriodo(o.rotulo()) < hoje.getMonthValue())
+                .toList();
+        if (periodos.isEmpty()) {
+            return consultarPeriodo(selecao);
+        }
+        Resposta ultima = null;
+        int mesUltima = -1;
+        List<String> importados = new java.util.ArrayList<>();
+        List<String> falhas = new java.util.ArrayList<>();
+        for (SimamClient.Opcao p : periodos) {
+            Map<String, String> sel = new java.util.LinkedHashMap<>(selecao);
+            sel.put("periodo", p.valor());
+            Resposta r;
+            try {
+                r = consultarPeriodo(sel);
+            } catch (IOException | RuntimeException e) {
+                log.warn("SIMAM: período {} não foi importado", p.rotulo(), e);
+                falhas.add(p.rotulo().trim() + " (" + e.getMessage() + ")");
+                continue;
+            }
+            if (r.demonstrativo() == null) {
+                falhas.add(p.rotulo().trim());
+                if (ultima == null) {
+                    ultima = r;
+                }
+                continue;
+            }
+            importados.add(p.rotulo().trim());
+            int mes = r.demonstrativo().mes();
+            if (ultima == null || ultima.demonstrativo() == null || mes > mesUltima) {
+                ultima = r;
+                mesUltima = mes;
+            }
+        }
+        if (ultima == null) {
+            throw new IOException("nenhum período do ano foi importado: " + String.join("; ", falhas));
+        }
+        String msg = (importados.isEmpty() ? "Nenhum período importado." : "Períodos importados: " + String.join(", ", importados) + ".")
+                + (falhas.isEmpty() ? "" : " Sem demonstrativo ou com falha: " + String.join("; ", falhas) + ".");
+        return new Resposta(ultima.importacao(), ultima.demonstrativo(), ultima.excelUrl(), msg);
+    }
+
+    private Resposta consultarPeriodo(Map<String, String> selecao) throws IOException, InterruptedException {
         SimamClient.Retorno r = client.consultar(selecao);
         String codIbge = selecao.get("municipio");
         LinhaDespesa linha = null;
