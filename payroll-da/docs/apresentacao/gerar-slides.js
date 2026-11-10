@@ -123,7 +123,7 @@ const MEMBERS = ['Arthur Folly Nagib Ferreira', 'Gustavo Erthal Leão de Siqueir
   s = pres.addSlide({ masterName: 'Escuro', sectionTitle: 'Apresentação do produto' });
   T(s, 'O produto: dashboard', { x: 0.5, y: 0.3, w: 9, h: 0.7, fontSize: 30, bold: true, color: C.background1, fontFace: THEME.headFontFace, valign: 'middle' });
   s.addImage({ path: IMG + 'dashboard-crop.png', x: 0.5, y: 1.2, w: 5.92, h: 3.7, altText: 'Dashboard com a análise do município de Jussara', objectName: 'Print dashboard' });
-  T(s, 'Exemplo com os valores do 1º quadrimestre do relatório de Jussara-PR; série anual ilustrativa', { x: 0.5, y: 4.98, w: 5.92, h: 0.25, fontSize: 10, italic: true, color: HEX.ice });
+  T(s, 'Exemplo com os valores anuais de 2019 a 2025 do relatório de Jussara-PR', { x: 0.5, y: 4.98, w: 5.92, h: 0.25, fontSize: 10, italic: true, color: HEX.ice });
   const feats = [['Análise do município', 'RCL, despesa e índice da LRF comparados ao ano anterior'], ['Série histórica', 'crescimento acumulado e médio da receita e da despesa'],
     ['Limites da LRF', 'índice por ano contra alerta, prudencial e máximo'], ['Visão geral', 'faixas, ranking e tabela de todas as entidades']];
   for (let i = 0; i < feats.length; i++) {
@@ -135,11 +135,11 @@ const MEMBERS = ['Arthur Folly Nagib Ferreira', 'Gustavo Erthal Leão de Siqueir
   // 6 Produto - consulta e assistente
   s = pres.addSlide({ masterName: 'Claro', sectionTitle: 'Apresentação do produto' });
   s.addText('O produto: analisar município e assistente IA', { placeholder: 'title' });
-  shot(s, 'analisar-municipio.png', 0.55, 1.25, 4.25, 2.485, 'Tela Analisar município, só com município e ano', 'Print consulta');
+  shot(s, 'analisar-municipio.png', 0.55, 1.25, 4.25, 2.485, 'Tela Analisar município, com município, relatório e ano', 'Print consulta');
   shot(s, 'assistente-crop.png', 5.2, 1.25, 4.25, 2.485, 'Assistente IA com histórico de conversas', 'Print assistente');
   await badge(s, fa.FaSearch, 0.55, 4.0, 0.46, C.accent1, HEX.white, 'Ícone consulta');
   T(s, 'Analisar município', { x: 1.15, y: 3.97, w: 3.6, h: 0.28, fontSize: 15, bold: true, color: C.text1 });
-  T(s, 'Só município e ano: o sistema escolhe a entidade e importa todos os meses do ano', { x: 1.15, y: 4.27, w: 3.65, h: 0.55, fontSize: 12, color: HEX.muted, valign: 'top' });
+  T(s, 'Município, relatório e ano: o sistema escolhe a entidade e importa o ano todo', { x: 1.15, y: 4.27, w: 3.65, h: 0.55, fontSize: 12, color: HEX.muted, valign: 'top' });
   await badge(s, fa.FaRobot, 5.2, 4.0, 0.46, C.accent1, HEX.white, 'Ícone assistente');
   T(s, 'Assistente IA', { x: 5.8, y: 3.97, w: 3.6, h: 0.28, fontSize: 15, bold: true, color: C.text1 });
   T(s, 'Responde com os dados do banco, sugere filtros no dashboard e guarda o histórico', { x: 5.8, y: 4.27, w: 3.65, h: 0.55, fontSize: 12, color: HEX.muted, valign: 'top' });

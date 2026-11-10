@@ -66,7 +66,7 @@ export default function AnaliseMunicipio({ codIbge, nomeMunicipio, periodo, vers
         <div className="destaque">
           <span>Índice da LRF (despesa ÷ RCL)</span>
           <strong style={{ color: FAIXAS[faixa].cor }}>{semRcl ? '—' : pct(atual.percentual)}</strong>
-          <small>{semRcl ? 'sem a RCL não há como calcular' : `${FAIXAS[faixa].nome}: alerta ${pct(limite * 0.9, 1)}, prudencial ${pct(limite * 0.95, 1)}, máximo ${pct(limite, 0)}`}</small>
+          <small>{semRcl ? 'sem a RCL não há como calcular' : `${FAIXAS[faixa].nome} · limites: alerta ${pct(limite * 0.9, 1)}, prudencial ${pct(limite * 0.95, 1)}, máximo ${pct(limite, 0)}`}</small>
         </div>
       </div>
 
