@@ -24,16 +24,25 @@ function crescimento(anos, campo) {
 
 /**
  * Análise da prefeitura do município, na ordem do relatório de análise financeira: RCL ajustada e despesa total com
- * pessoal (ano atual contra o mesmo período do ano anterior), série histórica e índice da LRF frente aos limites.
+ * pessoal (ano atual contra o mesmo período do ano anterior), série histórica, índice da LRF frente aos limites e
+ * transferências do FUNDEB por ano.
  */
 export default function AnaliseMunicipio({ codIbge, nomeMunicipio, periodo, versao, irPara }) {
   const entidades = useCarregar(() => api.entidadesDoMunicipio(codIbge), [codIbge, versao])
   const prefeitura = entidades.dados?.find((e) => e.poder === 'EXECUTIVO')
   const evolucao = useCarregar(() => (prefeitura ? api.evolucaoEntidade(prefeitura.id) : []), [prefeitura?.id, versao])
+  const fundeb = useCarregar(() => api.fundeb(codIbge), [codIbge, versao])
 
-  if (entidades.dados && !prefeitura) return null
-  const serie = (evolucao.dados || []).map((p) => ({ ...p, despesaTotal: n(p.despesaTotal), rclAjustada: n(p.rclAjustada), percentual: n(p.percentual) }))
-  if (!serie.length) return null
+  const fAnos = (fundeb.dados || []).map((a) => ({ ...a, transferido: n(a.transferido) })).filter((a) => a.transferido)
+  const serie = prefeitura ? (evolucao.dados || []).map((p) => ({ ...p, despesaTotal: n(p.despesaTotal), rclAjustada: n(p.rclAjustada), percentual: n(p.percentual) })) : []
+  if (!serie.length) {
+    return fAnos.length ? (
+      <div className="panel analise-municipio">
+        <div className="panel-head"><div><h2>Análise de {nomeMunicipio}</h2></div></div>
+        <Fundeb anos={fAnos} />
+      </div>
+    ) : null
+  }
 
   const atual = serie.find((p) => periodo && p.ano === periodo.ano && p.mes === periodo.mes) || serie[serie.length - 1]
   const anterior = serie.find((p) => p.ano === atual.ano - 1 && p.mes === atual.mes)
@@ -41,6 +50,10 @@ export default function AnaliseMunicipio({ codIbge, nomeMunicipio, periodo, vers
   const vRcl = anterior && variacao(atual.rclAjustada, anterior.rclAjustada)
   const vDtp = anterior && variacao(atual.despesaTotal, anterior.despesaTotal)
   const anos = porAno(serie)
+  // o gráfico por ano junta o FUNDEB (RREO MDE) aos anos do RGF
+  const porAnoGrafico = new Map(anos.map((p) => [p.ano, { ...p }]))
+  fAnos.forEach((a) => porAnoGrafico.set(a.ano, { ano: a.ano, ...porAnoGrafico.get(a.ano), fundeb: a.transferido }))
+  const grafico = [...porAnoGrafico.values()].sort((a, b) => a.ano - b.ano)
   // a série histórica usa os anos fechados (dezembro); o ano corrente entra só no gráfico
   const fechados = anos.filter((p) => p.mes === 12)
   const historico = fechados.length >= 2 ? fechados : anos
@@ -66,7 +79,7 @@ export default function AnaliseMunicipio({ codIbge, nomeMunicipio, periodo, vers
         <div className="destaque">
           <span>Índice da LRF (despesa ÷ RCL)</span>
           <strong style={{ color: FAIXAS[faixa].cor }}>{semRcl ? '—' : pct(atual.percentual)}</strong>
-          <small>{semRcl ? 'sem a RCL não há como calcular' : `${FAIXAS[faixa].nome}: alerta ${pct(limite * 0.9, 1)}, prudencial ${pct(limite * 0.95, 1)}, máximo ${pct(limite, 0)}`}</small>
+          <small>{semRcl ? 'sem a RCL não há como calcular' : `${FAIXAS[faixa].nome} · limites: alerta ${pct(limite * 0.9, 1)}, prudencial ${pct(limite * 0.95, 1)}, máximo ${pct(limite, 0)}`}</small>
         </div>
       </div>
 
@@ -80,10 +93,10 @@ export default function AnaliseMunicipio({ codIbge, nomeMunicipio, periodo, vers
 
       <div className="grade">
         <div>
-          <h3 className="subtitulo">Receita e despesa com pessoal por ano</h3>
+          <h3 className="subtitulo">Receita, despesa com pessoal{fAnos.length ? ' e FUNDEB' : ''} por ano</h3>
           <div style={{ width: '100%', height: 240 }}>
             <ResponsiveContainer>
-              <ComposedChart data={anos} margin={{ top: 6, right: 6, left: 6, bottom: 0 }}>
+              <ComposedChart data={grafico} margin={{ top: 6, right: 6, left: 6, bottom: 0 }}>
                 <CartesianGrid vertical={false} />
                 <XAxis dataKey="ano" tickLine={false} axisLine={false} />
                 <YAxis tickLine={false} axisLine={false} tickFormatter={moeda} width={78} />
@@ -91,6 +104,7 @@ export default function AnaliseMunicipio({ codIbge, nomeMunicipio, periodo, vers
                 <Legend />
                 <Bar dataKey="rclAjustada" name="RCL ajustada" fill="#3b5bfd" radius={[6, 6, 0, 0]} />
                 <Bar dataKey="despesaTotal" name="Despesa com pessoal" fill="#7c4dff" radius={[6, 6, 0, 0]} />
+                {fAnos.length > 0 && <Bar dataKey="fundeb" name="Transferências do FUNDEB" fill="#16a34a" radius={[6, 6, 0, 0]} />}
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -114,6 +128,37 @@ export default function AnaliseMunicipio({ codIbge, nomeMunicipio, periodo, vers
           </div>
         </div>
       </div>
+      {fAnos.length > 0 && <Fundeb anos={fAnos} />}
+    </div>
+  )
+}
+
+/** RREO – Transferências do FUNDEB: valor de cada ano, evolução sobre o ano anterior e crescimento no período. */
+function Fundeb({ anos }) {
+  const fechados = anos.filter((a) => a.mesFinal === 12)
+  const c = crescimento(fechados.length >= 2 ? fechados : anos, 'transferido')
+  return (
+    <div className="fundeb">
+      <h3 className="subtitulo">RREO – Transferências do FUNDEB</h3>
+      <div className="tabela-wrap">
+        <table className="demonstrativo fundeb-anos">
+          <thead><tr><th />{anos.map((a) => <th key={a.ano} className="n">{a.ano}{a.mesFinal < 12 ? ` (até ${MESES[a.mesFinal - 1]})` : ''}</th>)}</tr></thead>
+          <tbody>
+            <tr className="forte"><td>Transferido</td>{anos.map((a) => <td key={a.ano} className="n">{moedaCheia(a.transferido)}</td>)}</tr>
+            <tr><td>Evolução</td>{anos.map((a, i) => {
+              const v = i > 0 && anos[i - 1].ano === a.ano - 1 ? variacao(a.transferido, anos[i - 1].transferido) : null
+              return <td key={a.ano} className="n">{v == null ? '—' : <b className={v > 0 ? 'sobe' : 'desce'}>{v > 0 ? '+' : ''}{pct(v)}</b>}</td>
+            })}</tr>
+          </tbody>
+        </table>
+      </div>
+      {c && (
+        <p className="hint texto-analise">
+          De {c.de} a {c.ate}, as transferências do FUNDEB (Fundo de Manutenção e Desenvolvimento da Educação Básica e de
+          Valorização dos Profissionais da Educação) para o município {c.acumulado >= 0 ? 'cresceram' : 'caíram'} {pct(Math.abs(c.acumulado))}
+          {' '}(média de {pct(c.media)} ao ano).
+        </p>
+      )}
     </div>
   )
 }

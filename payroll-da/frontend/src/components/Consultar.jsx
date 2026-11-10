@@ -7,12 +7,22 @@ const ETAPAS = ['Abrindo o formulário do SIMAM (TCE-PR)', 'Aplicando os filtros
 const CLASSE = { tipo: '', municipio: 'largo', entidade: 'inteiro', relatorio: 'inteiro' }
 
 const sem = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-// o sistema só sabe ler o Demonstrativo da Despesa com Pessoal; os outros relatórios do SIMAM não são mostrados
+// o sistema sabe ler o Demonstrativo da Despesa com Pessoal (RGF)
 const relatorioAceito = (o) => sem(o.rotulo).includes('despesa com pessoal')
-// Tipo fica fixo em Município, a entidade é a do próprio município (ex.: "MUNICÍPIO DE CANTAGALO"), o relatório é o RGF
-// da despesa com pessoal (traz a despesa, a RCL ajustada e o índice da LRF) e o período não é escolhido: o backend
-// importa todos os meses publicados no ano
-const OCULTOS = ['tipo', 'entidade', 'relatorio', 'periodo']
+/**
+ * Relatórios da análise financeira do município (os mesmos do relatório de análise do PSPN). RCL ajustada, despesa total
+ * com pessoal e índice da LRF vêm do mesmo demonstrativo do RGF no SIMAM; o FUNDEB vem do demonstrativo MDE do RREO.
+ */
+const TIPOS = [
+  { id: 'rcl', rotulo: 'RREO – Receita Corrente Líquida Ajustada', simam: relatorioAceito },
+  { id: 'dtp', rotulo: 'RGF – Despesa Total com Pessoal', simam: relatorioAceito },
+  { id: 'lrf', rotulo: 'LRF – Índice de Responsabilidade Fiscal', simam: relatorioAceito },
+  // no SIMAM, as transferências do FUNDEB estão no demonstrativo de Manutenção e Desenvolvimento do Ensino (MDE)
+  { id: 'fundeb', rotulo: 'RREO – Transferências do FUNDEB', simam: (o) => sem(o.rotulo).includes('desenvolvimento do ensino') },
+]
+// Tipo fica fixo em Município, a entidade é a do próprio município (ex.: "MUNICÍPIO DE CANTAGALO") e o período não é
+// escolhido: o backend importa todos os meses publicados no ano
+const OCULTOS = ['tipo', 'entidade', 'periodo']
 const entidadeDoMunicipio = (opcoes) => opcoes.find((o) => /^(municipio|prefeitura municipal) de /.test(sem(o.rotulo).trim()))
 
 export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPara }) {
@@ -26,6 +36,7 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
   const [aviso, setAviso] = useState(null)
   const [erroSimam, setErroSimam] = useState(null)
   const [tentativa, setTentativa] = useState(0)
+  const [tipo, setTipo] = useState('')
 
   // cada escolha pode liberar o próximo filtro no SIMAM, então a lista é relida a cada mudança
   useEffect(() => {
@@ -52,10 +63,18 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
       escolher('entidade', doMunicipio.valor)
       return
     }
+    // trocou o município: reaplica o relatório já escolhido
     const relatorio = filtros.find((f) => f.chave === 'relatorio')
-    const rgf = relatorio?.habilitado && relatorio.opcoes.find(relatorioAceito)
-    if (rgf && !relatorio.valor && selecao.relatorio !== rgf.valor) escolher('relatorio', rgf.valor)
+    if (tipo && relatorio?.habilitado && !relatorio.valor && !selecao.relatorio) escolherTipo(tipo)
   }, [filtros])
+
+  /** O campo Relatório mostra os tipos da análise; cada um aponta para o relatório do SIMAM que traz o dado. */
+  function escolherTipo(id) {
+    setTipo(id)
+    const t = TIPOS.find((x) => x.id === id)
+    const opcao = t && filtros.find((f) => f.chave === 'relatorio')?.opcoes.find(t.simam)
+    escolher('relatorio', opcao ? opcao.valor : '')
+  }
 
   function escolher(chave, valor) {
     const ordem = filtros.map((f) => f.chave)
@@ -72,7 +91,8 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
   // campo liberado mas vazio, logo depois de campos já preenchidos: o SIMAM não tem nada para essas escolhas
   const semOpcoes = filtros.filter((f, i) => f.habilitado && f.opcoes.length === 0
     && filtros.slice(0, i).every((a) => !a.habilitado || !a.opcoes.length || a.valor))
-  const completo = exigidos.length > 0 && exigidos.every((f) => f.valor) && semOpcoes.length === 0
+  const temTipos = filtros.some((f) => f.chave === 'relatorio' && f.opcoes.some(relatorioAceito))
+  const completo = exigidos.length > 0 && exigidos.every((f) => f.valor) && semOpcoes.length === 0 && (!temTipos || Boolean(tipo))
   const rotulo = (chave) => filtros.find((f) => f.chave === chave)?.opcoes.find((o) => o.valor === selecao[chave])?.rotulo
 
   async function baixarExcel(r = resultado) {
@@ -113,6 +133,7 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
   }
 
   const d = resultado?.demonstrativo
+  const fb = resultado?.fundeb
   const linhas = d ? [
     ['Despesa bruta com pessoal (I)', moedaCheia(d.despesaBruta), true],
     ['Pessoal ativo', moedaCheia(d.pessoalAtivo)],
@@ -161,18 +182,26 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
         {carregandoFiltros && !filtros.length && [0, 1, 2, 3].map((i) => <div key={i} className="campo esqueleto" />)}
         {filtros.filter((f) => !OCULTOS.includes(f.chave)
           || (f.chave === 'entidade' && f.habilitado && f.opcoes.length > 0 && !entidadeDoMunicipio(f.opcoes))
-          || (f.chave === 'relatorio' && f.habilitado && f.opcoes.length > 0 && !f.opcoes.some(relatorioAceito))).map((f) => ({ ...f, opcoes: f.chave === 'relatorio' && f.opcoes.some(relatorioAceito) ? f.opcoes.filter(relatorioAceito) : f.opcoes })).map((f, i) => (
+          ).map((f) => (f.chave !== 'relatorio' || !f.opcoes.some(relatorioAceito) ? f : {
+            ...f, valor: f.valor ? tipo : '',
+            opcoes: TIPOS.map((t) => {
+              const falta = t.pendente || (!f.opcoes.some(t.simam) && 'não disponível no SIMAM para esta entidade')
+              return { valor: t.id, rotulo: falta ? `${t.rotulo} (${falta})` : t.rotulo, desabilitado: Boolean(falta) }
+            }),
+          })).map((f, i) => (
           <label key={f.chave} className={`campo ${CLASSE[f.chave] ?? ''}`} htmlFor={`c-${f.chave}`}>
             <span><b className="passo">{i + 1}</b>{f.rotulo}</span>
             <select id={`c-${f.chave}`} value={f.valor} disabled={!f.habilitado || etapa >= 0}
-              onChange={(e) => escolher(f.chave, e.target.value)}>
+              onChange={(e) => (f.chave === 'relatorio' && f.opcoes.some((o) => o.valor === 'rcl') ? escolherTipo(e.target.value) : escolher(f.chave, e.target.value))}>
               <option value="">Selecione{f.chave === 'ano' ? ' um ano' : ''}…</option>
-              {f.opcoes.map((o) => <option key={o.valor} value={o.valor}>{o.rotulo}</option>)}
+              {f.opcoes.map((o) => <option key={o.valor} value={o.valor} disabled={o.desabilitado}>{o.rotulo}</option>)}
             </select>
           </label>
         ))}
         {filtros.some((f) => f.chave === 'relatorio' && f.opcoes.some(relatorioAceito)) && (
-          <div className="inteiro hint">O sistema usa a entidade do próprio município e o RGF da despesa com pessoal, que traz a despesa total, a receita corrente líquida ajustada e o índice da LRF. Todos os meses publicados no ano escolhido são importados, o que pode levar alguns minutos.</div>
+          <div className="inteiro hint">{tipo === 'fundeb'
+            ? 'As transferências do FUNDEB vêm do demonstrativo de Manutenção e Desenvolvimento do Ensino (MDE) do RREO. Os valores são acumulados no ano, então o sistema importa o último bimestre publicado.'
+            : 'RCL ajustada, despesa total com pessoal e índice da LRF vêm do mesmo demonstrativo do RGF no SIMAM; o sistema usa a entidade do próprio município. Todos os meses publicados no ano escolhido são importados, o que pode levar alguns minutos.'}</div>
         )}
         <div className="inteiro acoes-consulta">
           <button className="btn" type="submit" disabled={etapa >= 0 || !completo}>{etapa >= 0 ? 'Analisando…' : 'Analisar e importar'}</button>
@@ -200,7 +229,42 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
       </>
       )}
 
-      {resultado && !d && (
+      {resultado && fb && (
+        <div className="panel">
+          <div className="panel-head">
+            <div>
+              <h2>Município de {fb.municipio}</h2>
+              <div className="hint"><b>RREO – Transferências do FUNDEB</b></div>
+              <div className="hint">Ano {fb.ano} · {fb.mesFinal === 12 ? 'ano completo' : `acumulado até ${MESES[fb.mesFinal - 1]}`} ({fb.periodo})</div>
+            </div>
+          </div>
+          {resultado.mensagem && <p className="hint" style={{ marginTop: 0 }}>{resultado.mensagem}</p>}
+          <div className="destaques">
+            <div className="destaque"><span>Transferências do FUNDEB</span><strong>{moedaCheia(fb.transferido)}</strong><small>recebidas pelo município no período</small></div>
+            {fb.receitasDestinadas != null && <div className="destaque"><span>Receitas destinadas ao FUNDEB</span><strong>{moedaCheia(fb.receitasDestinadas)}</strong><small>contribuição do município ao fundo</small></div>}
+            {fb.resultadoLiquido != null && <div className="destaque"><span>Resultado líquido das transferências</span><strong className={fb.resultadoLiquido >= 0 ? 'sobe' : 'desce'}>{moedaCheia(fb.resultadoLiquido)}</strong><small>{fb.resultadoLiquido >= 0 ? 'o município recebeu mais do que contribuiu' : 'o município contribuiu mais do que recebeu'}</small></div>}
+          </div>
+          <div className="tabela-wrap">
+            <table className="demonstrativo">
+              <tbody>
+                {[
+                  ['Receitas destinadas ao FUNDEB', fb.receitasDestinadas, true],
+                  ['Receitas recebidas do FUNDEB', fb.receitasRecebidas, true],
+                  ['Complementação da União', fb.complementacaoUniao],
+                  ['Resultado líquido das transferências', fb.resultadoLiquido, true],
+                  ['Pagamento dos profissionais (liquidado)', fb.despesasProfissionais],
+                  ['Total das despesas do FUNDEB (liquidado)', fb.totalDespesas],
+                ].filter(([, v]) => v != null).map(([rot, v, forte]) => (
+                  <tr key={rot} className={forte ? 'forte' : ''}><td>{rot}</td><td className="n">{moedaCheia(v)}</td></tr>
+                ))}
+                {fb.percentualProfissionais != null && <tr><td>Parcela do FUNDEB aplicada nos profissionais</td><td className="n">{pct(fb.percentualProfissionais)}</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {resultado && !d && !fb && (
         <div className="panel sem-simam consulta-falhou">
           <div className="panel-head"><h2>A consulta não trouxe o demonstrativo</h2></div>
           <p className="erro">{resultado.mensagem || 'O SIMAM não devolveu dados para esses filtros.'}</p>
@@ -217,6 +281,7 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
           <div className="panel-head">
             <div>
               <h2>{d ? d.entidade : 'Sem resultado'}</h2>
+              {tipo && <div className="hint"><b>{TIPOS.find((t) => t.id === tipo)?.rotulo}</b></div>}
               {d && <div className="hint">{d.municipio} · último período importado: 12 meses até {MESES[d.mes - 1]}/{d.ano} · Poder {d.poder === 'EXECUTIVO' ? 'Executivo' : 'Legislativo'}</div>}
             </div>
             {d && <span className="pill" style={{ '--c': FAIXAS[d.faixa].cor }}>{FAIXAS[d.faixa].nome}</span>}
@@ -233,9 +298,11 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
                 <p className="hint" style={{ marginTop: 0 }}>O demonstrativo do SIMAM não traz a receita corrente líquida (RCL), então o percentual e a margem não puderam ser calculados. A despesa com pessoal foi importada normalmente.</p>
               )}
               <div className="destaques">
-                <div className="destaque"><span>Despesa sobre a RCL</span><strong>{pct(d.percentual)}</strong><small>limite máximo {pct(d.limiteMaximo)}</small></div>
+                {tipo === 'rcl' && <div className="destaque"><span>Receita corrente líquida ajustada</span><strong>{moedaCheia(d.rclAjustada)}</strong><small>últimos 12 meses</small></div>}
+                {tipo === 'dtp' && <div className="destaque"><span>Despesa total com pessoal</span><strong>{moedaCheia(d.despesaTotal)}</strong><small>últimos 12 meses</small></div>}
+                <div className="destaque"><span>{tipo === 'lrf' ? 'Índice da LRF (despesa ÷ RCL)' : 'Despesa sobre a RCL'}</span><strong>{pct(d.percentual)}</strong><small>limite máximo {pct(d.limiteMaximo)}</small></div>
                 <div className="destaque"><span>Uso do limite</span><strong style={{ color: FAIXAS[d.faixa].cor }}>{pct((d.percentual / d.limiteMaximo) * 100, 1)}</strong><small>{FAIXAS[d.faixa].descricao}</small></div>
-                <div className="destaque"><span>Margem até o limite</span><strong>{moedaCheia((d.rclAjustada * d.limiteMaximo) / 100 - d.despesaTotal)}</strong><small>sobre a RCL ajustada</small></div>
+                {(!tipo || tipo === 'lrf') && <div className="destaque"><span>Margem até o limite</span><strong>{moedaCheia((d.rclAjustada * d.limiteMaximo) / 100 - d.despesaTotal)}</strong><small>sobre a RCL ajustada</small></div>}
               </div>
               <div className="medidor" aria-hidden="true">
                 <span style={{ width: `${Math.min(100, (d.percentual / d.limiteMaximo) * 100)}%`, background: FAIXAS[d.faixa].cor }} />

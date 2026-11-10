@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import br.com.payrollda.lrf.consulta.ConsultaController.Resposta;
 import br.com.payrollda.lrf.dashboard.DashboardRepository;
+import br.com.payrollda.lrf.fundeb.FundebRepository;
 import br.com.payrollda.lrf.importacao.ImportacaoRepository;
 import br.com.payrollda.lrf.importacao.ImportacaoService;
 import br.com.payrollda.lrf.importacao.LinhaDespesa;
@@ -29,15 +30,17 @@ public class SimamService {
     private final ImportacaoService importacao;
     private final ImportacaoRepository importacoes;
     private final DashboardRepository dashboard;
+    private final FundebRepository fundeb;
     private final Path diagnostico;
 
     public SimamService(SimamClient client, ImportacaoService importacao, ImportacaoRepository importacoes,
-                        DashboardRepository dashboard,
+                        DashboardRepository dashboard, FundebRepository fundeb,
                         @Value("${tce.simam.diagnostico:${java.io.tmpdir}/simam-diagnostico}") String diagnostico) {
         this.client = client;
         this.importacao = importacao;
         this.importacoes = importacoes;
         this.dashboard = dashboard;
+        this.fundeb = fundeb;
         this.diagnostico = Path.of(diagnostico);
     }
 
@@ -50,17 +53,24 @@ public class SimamService {
      * que trouxe demonstrativo (o mais recente). Com período, faz a consulta de um período só.
      */
     public Resposta consultar(Map<String, String> selecao) throws IOException, InterruptedException {
+        List<SimamClient.Filtro> filtros = client.filtros(selecao);
+        boolean mde = filtros.stream().filter(f -> f.chave().equals("relatorio")).findFirst()
+                .flatMap(f -> f.opcoes().stream().filter(o -> o.valor().equals(selecao.get("relatorio"))).findFirst())
+                .map(o -> RelatorioRgfParser.sem(o.rotulo()).contains("DESENVOLVIMENTO DO ENSINO")).orElse(false);
         if (selecao.get("periodo") != null && !selecao.get("periodo").isBlank()) {
-            return consultarPeriodo(selecao);
+            return mde ? consultarMde(selecao, List.of()) : consultarPeriodo(selecao);
         }
         java.time.LocalDate hoje = java.time.LocalDate.now();
         boolean anoCorrente = String.valueOf(hoje.getYear()).equals(selecao.get("ano"));
         // no ano corrente, os meses que ainda não terminaram não têm relatório publicado
-        List<SimamClient.Opcao> periodos = client.filtros(selecao).stream()
+        List<SimamClient.Opcao> periodos = filtros.stream()
                 .filter(f -> f.chave().equals("periodo") && f.habilitado())
                 .findFirst().map(SimamClient.Filtro::opcoes).orElse(List.of()).stream()
                 .filter(o -> !anoCorrente || RelatorioRgfParser.mesDoPeriodo(o.rotulo()) < hoje.getMonthValue())
                 .toList();
+        if (mde) {
+            return consultarMde(selecao, periodos);
+        }
         if (periodos.isEmpty()) {
             return consultarPeriodo(selecao);
         }
@@ -137,6 +147,70 @@ public class SimamService {
         var d = dashboard.demonstrativo(entidadeId, linha.ano(), linha.mes()).orElse(null);
         String excel = d == null ? null : "/api/consultas/excel?entidadeId=" + entidadeId + "&ano=" + linha.ano() + "&mes=" + linha.mes();
         return new Resposta(dto, d, excel, d != null ? "Consulta concluída." : "Importado, mas sem demonstrativo para o período.");
+    }
+
+    /**
+     * RREO MDE (transferências do FUNDEB): os valores são acumulados no ano, então basta o período mais recente que o
+     * SIMAM tiver publicado. Tenta do último para o primeiro e para no primeiro que vier com o bloco do FUNDEB.
+     */
+    private Resposta consultarMde(Map<String, String> selecao, List<SimamClient.Opcao> periodos) throws IOException, InterruptedException {
+        List<Map<String, String>> tentativas = new java.util.ArrayList<>();
+        if (periodos.isEmpty()) {
+            tentativas.add(selecao);
+        }
+        for (int i = periodos.size() - 1; i >= 0; i--) {
+            Map<String, String> sel = new java.util.LinkedHashMap<>(selecao);
+            sel.put("periodo", periodos.get(i).valor());
+            tentativas.add(sel);
+        }
+        List<String> falhas = new java.util.ArrayList<>();
+        for (Map<String, String> sel : tentativas) {
+            SimamClient.Retorno r;
+            try {
+                r = client.consultar(sel);
+            } catch (IOException | RuntimeException e) {
+                log.warn("SIMAM: MDE do período {} não foi consultado", sel.get("periodo"), e);
+                falhas.add(e.getMessage());
+                continue;
+            }
+            String periodo = r.rotulos().getOrDefault("periodo", "").trim();
+            RelatorioMdeParser.Fundeb f = null;
+            String motivo = "";
+            if (r.csv() != null) {
+                try {
+                    f = RelatorioMdeParser.deCsv(r.csv());
+                } catch (RuntimeException e) {
+                    motivo = "CSV: " + e.getMessage();
+                }
+            }
+            if (f == null) {
+                try {
+                    f = RelatorioMdeParser.deHtml(r.htmlVisualizacao());
+                } catch (RuntimeException e) {
+                    motivo += (motivo.isEmpty() ? "" : " | ") + "HTML: " + e.getMessage();
+                }
+            }
+            if (f == null) {
+                salvarDiagnostico(r);
+                falhas.add((periodo.isEmpty() ? "período" : periodo) + ": " + motivo);
+                continue;
+            }
+            String codIbge = selecao.get("municipio");
+            String municipio = RelatorioRgfParser.titulo(r.rotulos().getOrDefault("municipio", codIbge).trim());
+            int ano = Integer.parseInt(r.rotulos().getOrDefault("ano", selecao.get("ano")).replaceAll("\\D", ""));
+            int mes = RelatorioRgfParser.mesDoPeriodo(periodo);
+            fundeb.salvar(codIbge, municipio, ano, periodo.isEmpty() ? "-" : periodo, mes == 0 ? 12 : mes, f);
+            long id = importacoes.criar("SIMAM", resumo(sel));
+            String msg = "Transferências do FUNDEB importadas (" + municipio + ", " + ano + (periodo.isEmpty() ? "" : ", " + periodo) + ").";
+            importacoes.finalizar(id, "CONCLUIDA", 1, 1, 0, msg);
+            FundebRepository.Ano gravado = fundeb.anos(codIbge).stream().filter(a -> a.ano() == ano).findFirst().orElse(null);
+            return new Resposta(importacoes.buscar(id).orElseThrow(), null, null, msg, gravado);
+        }
+        long id = importacoes.criar("SIMAM", resumo(selecao));
+        String msg = "Não consegui ler o FUNDEB do demonstrativo MDE em nenhum período do ano: " + String.join("; ", falhas)
+                + ". Amostras salvas em " + diagnostico + ".";
+        importacoes.finalizar(id, "FALHOU", 0, 0, 0, msg);
+        return new Resposta(importacoes.buscar(id).orElseThrow(), null, null, msg);
     }
 
     /** Título e começo do texto visível da página, para o erro mostrar o que o SIMAM disse (ex.: "relatório não gerado"). */

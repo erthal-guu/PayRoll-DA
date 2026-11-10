@@ -234,6 +234,9 @@ public final class RelatorioRgfParser {
         if (x.contains("QUADRIMESTRE")) {
             return num >= 1 && num <= 3 ? num * 4 : 0;
         }
+        if (x.contains("BIMESTRE")) { // RREO
+            return num >= 1 && num <= 6 ? num * 2 : 0;
+        }
         if (x.contains("SEMESTRE")) {
             return num >= 1 && num <= 2 ? num * 6 : 0;
         }
