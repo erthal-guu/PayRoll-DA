@@ -37,6 +37,8 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
   const [erroSimam, setErroSimam] = useState(null)
   const [tentativa, setTentativa] = useState(0)
   const [tipo, setTipo] = useState('')
+  // a planilha já foi gerada junto com a consulta (opção marcada): o botão de baixar não aparece de novo
+  const [excelGerado, setExcelGerado] = useState(false)
 
   // cada escolha pode liberar o próximo filtro no SIMAM, então a lista é relida a cada mudança
   useEffect(() => {
@@ -95,12 +97,13 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
   const completo = exigidos.length > 0 && exigidos.every((f) => f.valor) && semOpcoes.length === 0 && (!temTipos || Boolean(tipo))
   const rotulo = (chave) => filtros.find((f) => f.chave === chave)?.opcoes.find((o) => o.valor === selecao[chave])?.rotulo
 
-  async function baixarExcel(r = resultado) {
+  async function baixarExcel(r = resultado, auto = false) {
     setAviso(null)
     try {
       const { blob, nome } = await api.excel({ entidadeId: r.demonstrativo.entidadeId, ano: r.demonstrativo.ano, mes: r.demonstrativo.mes })
       const st = await salvarArquivo(blob, nome)
       setAviso(st === 'salvo' ? `Planilha ${nome} gerada.` : 'Download cancelado.')
+      if (st === 'salvo' && auto) setExcelGerado(true)
     } catch (e) {
       setAviso(e.message)
     }
@@ -115,7 +118,7 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
 
   async function consultar(ev) {
     ev?.preventDefault()
-    setErro(null); setAviso(null); setResultado(null)
+    setErro(null); setAviso(null); setResultado(null); setExcelGerado(false)
     try {
       setEtapa(0)
       const consulta = api.consultarSimam(selecao)
@@ -124,7 +127,7 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
       const r = await consulta
       setResultado(r)
       aoConsultar()
-      if (r.demonstrativo && baixarAuto) await baixarExcel(r)
+      if (r.demonstrativo && baixarAuto) await baixarExcel(r, true)
     } catch (e) {
       setErro(e.message)
     } finally {
@@ -319,7 +322,7 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
                 </table>
               </div>
               <div className="acoes-consulta" style={{ marginTop: 14 }}>
-                <button className="btn" onClick={() => baixarExcel()}>Baixar Excel (.xlsx)</button>
+                {!excelGerado && <button className="btn" onClick={() => baixarExcel()}>Baixar Excel (.xlsx)</button>}
                 <button className="btn ghost" onClick={() => verNoDashboard(d)}>Ver no dashboard</button>
                 <button className="btn ghost" onClick={() => perguntar(`Analise a situação da ${d.entidade} (id ${d.entidadeId}) e sugira o que fazer.`)}>Pedir análise ao assistente</button>
               </div>
