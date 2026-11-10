@@ -26,7 +26,6 @@ export default function DetalheEntidade({ entidade, fechar }) {
           <div className="panel kpi"><div className="rotulo">Despesa com pessoal</div><div className="valor" style={{ fontSize: 20 }}>{moedaCheia(ultimo.despesaTotal)}</div></div>
           <div className="panel kpi"><div className="rotulo">RCL ajustada</div><div className="valor" style={{ fontSize: 20 }}>{moedaCheia(ultimo.rclAjustada)}</div></div>
           <div className="panel kpi"><div className="rotulo">% da RCL em {periodoTxt(ultimo)}</div><div className="valor" style={{ fontSize: 20, color: FAIXAS[faixaTexto(ultimo.percentual, limite)].cor }}>{pct(ultimo.percentual)}</div></div>
-          <div className="panel kpi"><div className="rotulo">Margem até o limite</div><div className="valor" style={{ fontSize: 20 }}>{moedaCheia(ultimo.rclAjustada * limite / 100 - ultimo.despesaTotal)}</div></div>
         </div>
       )}
       <div className={carregando ? 'carregando' : ''} style={{ width: '100%', height: 260 }}>

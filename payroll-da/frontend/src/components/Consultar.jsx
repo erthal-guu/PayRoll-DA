@@ -9,6 +9,8 @@ const CLASSE = { tipo: '', municipio: 'largo', entidade: 'inteiro', relatorio: '
 const sem = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 // o sistema só sabe ler o Demonstrativo da Despesa com Pessoal; os outros relatórios do SIMAM não são mostrados
 const relatorioAceito = (o) => sem(o.rotulo).includes('despesa com pessoal')
+// Tipo fica fixo em Município e o período não é escolhido: o backend importa todos os períodos publicados no ano
+const OCULTOS = ['tipo', 'periodo']
 
 export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPara }) {
   const [selecao, setSelecao] = useState({})
@@ -33,6 +35,13 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
     return () => { atual = false }
   }, [selecao, tentativa])
 
+  // o Tipo não aparece na tela: se o SIMAM não trouxer Município escolhido, escolhe sozinho
+  useEffect(() => {
+    const tipo = filtros.find((f) => f.chave === 'tipo')
+    const municipio = tipo?.opcoes.find((o) => sem(o.rotulo).trim() === 'municipio')
+    if (tipo?.habilitado && municipio && tipo.valor !== municipio.valor && selecao.tipo !== municipio.valor) escolher('tipo', municipio.valor)
+  }, [filtros])
+
   function escolher(chave, valor) {
     const ordem = filtros.map((f) => f.chave)
     const novo = {}
@@ -44,7 +53,7 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
   }
 
   // só contam os campos que o SIMAM liberou e que têm opções; os outros não são exigidos
-  const exigidos = filtros.filter((f) => f.habilitado && f.opcoes.length > 0)
+  const exigidos = filtros.filter((f) => f.habilitado && f.opcoes.length > 0 && f.chave !== 'periodo')
   // campo liberado mas vazio, logo depois de campos já preenchidos: o SIMAM não tem nada para essas escolhas
   const semOpcoes = filtros.filter((f, i) => f.habilitado && f.opcoes.length === 0
     && filtros.slice(0, i).every((a) => !a.habilitado || !a.opcoes.length || a.valor))
@@ -107,7 +116,7 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
   return (
     <>
       <div>
-        <h1>Consulta automática</h1>
+        <h1>Analisar município</h1>
         <div className="sub">Escolha os filtros do SIMAM: o sistema busca o relatório no TCE-PR e grava na base, sem você baixar nada.</div>
       </div>
       {erro && <div className="erro"><b>A consulta falhou.</b> {erro}</div>}
@@ -116,7 +125,7 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
         <div className="panel sem-simam">
           <div className="panel-head"><h2>Não consegui abrir o SIMAM do TCE-PR</h2></div>
           <p className="erro">{erroSimam}</p>
-          <p className="hint">A consulta automática acessa <code>simam.tce.pr.gov.br</code> a partir do backend. Confira se o computador
+          <p className="hint">A análise do município acessa <code>simam.tce.pr.gov.br</code> a partir do backend. Confira se o computador
             onde o backend roda tem internet, se o site do TCE-PR abre no navegador e se nenhum firewall ou proxy está bloqueando o Java.</p>
           <div className="acoes-consulta">
             <button className="btn" onClick={() => setTentativa((t) => t + 1)} disabled={carregandoFiltros}>
@@ -135,21 +144,21 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
       )}
       <form className={`panel form-consulta ${carregandoFiltros ? 'carregando' : ''}`} onSubmit={consultar}>
         {carregandoFiltros && !filtros.length && [0, 1, 2, 3].map((i) => <div key={i} className="campo esqueleto" />)}
-        {filtros.map((f, i) => ({ ...f, opcoes: f.chave === 'relatorio' && f.opcoes.some(relatorioAceito) ? f.opcoes.filter(relatorioAceito) : f.opcoes })).map((f, i) => (
+        {filtros.filter((f) => !OCULTOS.includes(f.chave)).map((f) => ({ ...f, opcoes: f.chave === 'relatorio' && f.opcoes.some(relatorioAceito) ? f.opcoes.filter(relatorioAceito) : f.opcoes })).map((f, i) => (
           <label key={f.chave} className={`campo ${CLASSE[f.chave] ?? ''}`} htmlFor={`c-${f.chave}`}>
             <span><b className="passo">{i + 1}</b>{f.rotulo}</span>
             <select id={`c-${f.chave}`} value={f.valor} disabled={!f.habilitado || etapa >= 0}
               onChange={(e) => escolher(f.chave, e.target.value)}>
-              <option value="">Selecione{f.chave === 'ano' ? ' um ano' : f.chave === 'periodo' ? ' um período' : ''}…</option>
+              <option value="">Selecione{f.chave === 'ano' ? ' um ano' : ''}…</option>
               {f.opcoes.map((o) => <option key={o.valor} value={o.valor}>{o.rotulo}</option>)}
             </select>
           </label>
         ))}
         {filtros.some((f) => f.chave === 'relatorio' && f.opcoes.some(relatorioAceito)) && (
-          <div className="inteiro hint">Só aparece o relatório que o sistema sabe ler: o Demonstrativo da Despesa com Pessoal (RGF).</div>
+          <div className="inteiro hint">Só aparece o relatório que o sistema sabe ler: o Demonstrativo da Despesa com Pessoal (RGF). Todos os períodos publicados no ano escolhido são importados.</div>
         )}
         <div className="inteiro acoes-consulta">
-          <button className="btn" type="submit" disabled={etapa >= 0 || !completo}>{etapa >= 0 ? 'Consultando…' : 'Consultar e importar'}</button>
+          <button className="btn" type="submit" disabled={etapa >= 0 || !completo}>{etapa >= 0 ? 'Analisando…' : 'Analisar e importar'}</button>
           <label className="check" htmlFor="c-auto">
             <input id="c-auto" type="checkbox" checked={baixarAuto} onChange={(e) => setBaixarAuto(e.target.checked)} />
             Gerar também a planilha Excel
@@ -159,7 +168,7 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
         {semOpcoes.length > 0 && !carregandoFiltros && (
           <div className="inteiro aviso-simam">
             O SIMAM não trouxe nenhuma opção para <b>{semOpcoes.map((f) => f.rotulo).join(', ')}</b> com as escolhas atuais.
-            Tente outro <b>{filtros[0]?.rotulo || 'Tipo'}</b> (para prefeituras e câmaras, use <b>Município</b>).
+            Tente outra entidade ou outro ano.
           </div>
         )}
         <div className="inteiro hint">
@@ -191,12 +200,15 @@ export default function Consultar({ aoConsultar, verNoDashboard, perguntar, irPa
           <div className="panel-head">
             <div>
               <h2>{d ? d.entidade : 'Sem resultado'}</h2>
-              {d && <div className="hint">{d.municipio} · 12 meses até {MESES[d.mes - 1]}/{d.ano} · Poder {d.poder === 'EXECUTIVO' ? 'Executivo' : 'Legislativo'}</div>}
+              {d && <div className="hint">{d.municipio} · último período importado: 12 meses até {MESES[d.mes - 1]}/{d.ano} · Poder {d.poder === 'EXECUTIVO' ? 'Executivo' : 'Legislativo'}</div>}
             </div>
             {d && <span className="pill" style={{ '--c': FAIXAS[d.faixa].cor }}>{FAIXAS[d.faixa].nome}</span>}
           </div>
           {resultado.importacao && (
             <p className="hint" style={{ marginTop: 0 }}>Importação #{resultado.importacao.id}: {resultado.importacao.mensagem}</p>
+          )}
+          {resultado.mensagem && resultado.mensagem !== 'Consulta concluída.' && (
+            <p className="hint" style={{ marginTop: 0 }}>{resultado.mensagem}</p>
           )}
           {!d ? <div className="vazio">{resultado.mensagem}</div> : (
             <>

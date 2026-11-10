@@ -96,9 +96,10 @@ export const api = {
   simamFiltros: (selecao) => req('/api/simam/filtros', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ selecao }),
   }, 170000),
+  // sem período, o backend consulta cada período do ano (até 150 s cada)
   consultarSimam: (selecao) => req('/api/simam/consultar', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ selecao }),
-  }, 170000),
+  }, 600000),
   async simamDiagnostico() {
     const resp = await fetch(`${BASE}/api/simam/diagnostico`, comToken())
     if (!resp.ok) throw new Error('Não foi possível gerar o diagnóstico.')
@@ -110,6 +111,11 @@ export const api = {
     const nome = /filename\*?=(?:UTF-8'')?"?([^";]+)/i.exec(resp.headers.get('Content-Disposition') || '')?.[1]
     return { blob: await resp.blob(), nome: nome ? decodeURIComponent(nome) : `RGF_pessoal_${ano}-${mes}.xlsx` }
   },
+  professoresPisos: () => req('/api/professores/pisos'),
+  salvarPiso: (ano, piso) => req(`/api/professores/pisos/${ano}`, { ...json(piso), method: 'PUT' }),
+  professoresPlanos: () => req('/api/professores/planos'),
+  professores: (codIbge, ano, carga) => req(`/api/professores/${codIbge}/${ano}${query({ carga })}`),
+  salvarPlanoProfessores: (codIbge, ano, plano) => req(`/api/professores/${codIbge}/${ano}`, { ...json(plano), method: 'PUT' }),
   conversas: () => req('/api/chat/conversas'),
   conversa: (id) => req(`/api/chat/conversas/${id}`),
   removerConversa: (id) => req(`/api/chat/conversas/${id}`, { method: 'DELETE' }),

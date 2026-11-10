@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from './api/index.js'
+import AnaliseMunicipio from './components/AnaliseMunicipio.jsx'
 import Assistente from './components/Assistente.jsx'
 import Composicao from './components/Composicao.jsx'
 import Consultar from './components/Consultar.jsx'
@@ -10,6 +11,7 @@ import Filtros from './components/Filtros.jsx'
 import Importacao from './components/Importacao.jsx'
 import Kpis from './components/Kpis.jsx'
 import Login from './components/Login.jsx'
+import Professores from './components/Professores.jsx'
 import Ranking from './components/Ranking.jsx'
 import TabelaEntidades from './components/TabelaEntidades.jsx'
 import Usuarios from './components/Usuarios.jsx'
@@ -20,12 +22,13 @@ const ICONES = {
   consultar: 'M11 4a7 7 0 1 0 4.2 12.6l4.1 4.1 1.4-1.4-4.1-4.1A7 7 0 0 0 11 4Zm0 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z',
   dashboard: 'M4 13h6V4H4v9Zm0 7h6v-5H4v5Zm10 0h6v-9h-6v9Zm0-16v5h6V4h-6Z',
   importacao: 'M12 3 6.5 8.5l1.4 1.4L11 6.8V16h2V6.8l3.1 3.1 1.4-1.4L12 3ZM5 18v3h14v-3h-2v1H7v-1H5Z',
+  professores: 'M12 3 1 9l11 6 9-4.9V17h2V9L12 3ZM5 13.2V17c0 1.7 3.1 4 7 4s7-2.3 7-4v-3.8l-7 3.8-7-3.8Z',
   usuarios: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5Z',
 }
 
 // Prefeituras só veem o dashboard do próprio município; importar e consultar o SIMAM é do administrador.
-const TELAS_ADMIN = { consultar: 'Consulta automática', dashboard: 'Dashboard', importacao: 'Importar CSV', usuarios: 'Usuários' }
-const TELAS_PREFEITURA = { dashboard: 'Dashboard', usuarios: 'Minha conta' }
+const TELAS_ADMIN = { consultar: 'Analisar município', dashboard: 'Dashboard', professores: 'Professores', importacao: 'Importar CSV', usuarios: 'Usuários' }
+const TELAS_PREFEITURA = { dashboard: 'Dashboard', professores: 'Professores', usuarios: 'Minha conta' }
 
 function telaInicial(TELAS) {
   const h = window.location.hash.slice(1)
@@ -158,6 +161,8 @@ function Painel({ usuario, sair }) {
             perguntar={(texto) => setPedidoChat({ texto, em: Date.now() })} />
         ) : tela === 'importacao' ? (
           <Importacao aoImportar={() => setVersao((v) => v + 1)} />
+        ) : tela === 'professores' ? (
+          <Professores usuario={usuario} municipios={municipios.dados || []} codIbgeInicial={filtros.codIbge} />
         ) : tela === 'usuarios' ? (
           <Usuarios usuario={usuario} municipios={municipios.dados || []} />
         ) : (
@@ -192,6 +197,11 @@ function Painel({ usuario, sair }) {
               <>
                 <Filtros filtros={filtros} setFiltros={setFiltros} periodos={periodos.dados || []}
                   municipios={municipios.dados || []} nomeEntidade={selecionada?.entidade} limparEntidade={() => setSelecionada(null)} />
+                {filtros.codIbge && (
+                  <AnaliseMunicipio key={filtros.codIbge} codIbge={filtros.codIbge} versao={versao} irPara={irPara}
+                    nomeMunicipio={municipios.dados?.find((m) => m.codIbge === filtros.codIbge)?.municipio || filtros.codIbge}
+                    periodo={filtros.ano ? { ano: filtros.ano, mes: filtros.mes } : null} />
+                )}
                 <div className={resumo.carregando ? 'carregando' : ''}><Kpis resumo={resumo.dados} /></div>
 
                 {selecionada && <DetalheEntidade key={selecionada.entidadeId} entidade={selecionada} fechar={() => setSelecionada(null)} />}
