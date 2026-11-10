@@ -53,6 +53,18 @@ class RelatorioMdeParserTest {
     }
 
     @Test
+    void percentualDoLayoutAtualEOUltimoNumeroDaLinha() {
+        String html = "<table><tr><td>7- RECEITAS RECEBIDAS DO FUNDEB</td><td>20,00</td><td>20,00</td><td>6.254.893,18</td><td>99,00%</td></tr>"
+                + "<tr><td>Mínimo de 70% do FUNDEB na Remuneração dos Profissionais da Educação Básica</td><td>4.378.425,23</td>"
+                + "<td>4.690.000,00</td><td>74,98%</td></tr>"
+                + "<tr><td>Mínimo de 70% do FUNDEB na Remuneração (outra linha)</td><td>4.378.425,23</td></tr></table>";
+        igual("74.98", RelatorioMdeParser.deHtml(html).percentualProfissionais());
+        String soValor = "<table><tr><td>7- RECEITAS RECEBIDAS DO FUNDEB</td><td>1,00</td><td>1,00</td><td>1,00</td></tr>"
+                + "<tr><td>Mínimo de 70% do FUNDEB na Remuneração</td><td>4.378.425,23</td></tr></table>";
+        assertEquals(null, RelatorioMdeParser.deHtml(soValor).percentualProfissionais());
+    }
+
+    @Test
     void recusaOutroRelatorio() {
         assertThrows(RelatorioRgfParser.RelatorioInvalidoException.class,
                 () -> RelatorioMdeParser.deCsv("dsItem,valor\nRECEITA CORRENTE LIQUIDA,\" 1.000,00\"\n"));
