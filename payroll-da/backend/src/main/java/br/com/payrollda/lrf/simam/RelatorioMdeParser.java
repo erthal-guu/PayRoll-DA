@@ -107,7 +107,7 @@ public final class RelatorioMdeParser {
         BigDecimal resultado = realizado(itens, "RESULTADO LIQUIDO DAS TRANSFERENCIAS DO FUNDEB");
         BigDecimal profissionais = liquidado(itens, "PAGAMENTO DOS PROFISSIONAIS DO MAGISTERIO", "PROFISSIONAIS DA EDUCACAO BASICA");
         BigDecimal total = liquidado(itens, "TOTAL DAS DESPESAS DO FUNDEB", "TOTAL DAS DESPESAS COM RECURSOS DO FUNDEB");
-        BigDecimal percentual = primeiro(itens, "MINIMO DE 60% DO FUNDEB", "MINIMO DE 70% DO FUNDEB");
+        BigDecimal percentual = percentual(itens, "MINIMO DE 60% DO FUNDEB", "MINIMO DE 70% DO FUNDEB");
         return new Fundeb(destinadas, recebidas, transferencias, complementacao, resultado, profissionais, total, percentual);
     }
 
@@ -141,9 +141,17 @@ public final class RelatorioMdeParser {
         return v.size() >= 5 ? v.get(4) : v.size() >= 3 ? v.get(2) : v.get(v.size() - 1);
     }
 
-    private static BigDecimal primeiro(List<Item> itens, String... chaves) {
+    /**
+     * Indicador do mínimo aplicado nos profissionais. No layout antigo a linha traz só o percentual; no atual traz valor
+     * exigido, valor aplicado e % aplicado, então fica o último número. Um valor fora de 0 a 1000 não é percentual.
+     */
+    private static BigDecimal percentual(List<Item> itens, String... chaves) {
         Item it = achar(itens, chaves);
-        return it == null ? null : it.valores().get(0);
+        if (it == null) {
+            return null;
+        }
+        BigDecimal v = it.valores().get(it.valores().size() - 1);
+        return v.abs().compareTo(new BigDecimal("1000")) < 0 ? v : null;
     }
 
     /** Número no formato do relatório ("1.234,56", "- 240.584,06", "10,82%"); nulo para texto. */
