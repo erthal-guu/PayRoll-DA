@@ -127,11 +127,11 @@ code { font: 500 12.5px ui-monospace, monospace; background: var(--panel-2); bor
 .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; }
 .kpi { display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
 .kpi::after { content: ""; position: absolute; right: -40px; top: -40px; width: 130px; height: 130px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--cor, var(--accent)) 14%, transparent), transparent 70%); transition: transform .5s var(--ease); }
-.kpi:hover { transform: translateY(-4px); }
+.kpi:hover { transform: translateY(-2px); }
 .kpi:hover::after { transform: scale(1.35); }
 .kpi-topo { display: flex; align-items: center; gap: 12px; }
 .kpi-icone { flex: none; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; color: #fff; background: var(--cor, var(--accent)); box-shadow: 0 8px 18px -8px var(--cor, var(--accent)); transition: transform .4s var(--ease); }
-.kpi:hover .kpi-icone { transform: rotate(-8deg) scale(1.08); }
+.kpi:hover .kpi-icone { transform: scale(1.05); }
 .kpi .rotulo { color: var(--muted); font-size: 13px; font-weight: 600; }
 .kpi .valor { margin-top: 8px; font: 800 30px/1.1 var(--f-display); letter-spacing: -.025em; font-variant-numeric: tabular-nums; }
 .kpi .det { font-size: 12.5px; color: var(--muted); }
@@ -327,7 +327,7 @@ table.demonstrativo tr.forte td:first-child { padding-left: 12px; }
 .entrada textarea { flex: 1; resize: none; }
 
 /* ---------- Animações ---------- */
-@keyframes surgir { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes surgir { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes aparecer { from { opacity: 0; } to { opacity: 1; } }
 @keyframes crescer { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes brilho { from { background-position: 200% 0; } to { background-position: -200% 0; } }
@@ -336,7 +336,7 @@ table.demonstrativo tr.forte td:first-child { padding-left: 12px; }
 @keyframes pop { from { opacity: 0; transform: scale(.96) translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes girar { to { transform: rotate(360deg); } }
 
-.tela > * { animation: surgir .55s var(--ease) both; }
+.tela > * { animation: surgir .45s var(--ease) both; }
 .tela > :nth-child(2) { animation-delay: .06s; }
 .tela > :nth-child(3) { animation-delay: .12s; }
 .tela > :nth-child(4) { animation-delay: .18s; }
@@ -429,7 +429,14 @@ table.demonstrativo tr.forte td:first-child { padding-left: 12px; }
 .resultado-professores { display: grid; gap: 20px; }
 .linha-nivel { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; gap: 10px; align-items: end; }
 .tabela-salarial td, .tabela-salarial th { padding: 9px 10px; font-size: 13px; }
-.tabela-salarial td:first-child { position: sticky; left: 0; background: var(--panel); }
+.tabela-salarial td:first-child, .tabela-salarial th:first-child { position: sticky; left: 0; z-index: 2; padding-left: 22px; background: var(--panel); box-shadow: inset -1px 0 0 var(--line), 8px 0 10px -8px rgba(15, 27, 51, .18); }
+.tabela-salarial th:first-child { z-index: 3; background: var(--panel-2); }
+.tabela-salarial td:last-child, .tabela-salarial th:last-child { padding-right: 22px; }
+.tabela-salarial tbody tr { cursor: default; animation: none; }
+.tabela-salarial tbody tr:hover td { background: #f8faff; }
+.tabela-salarial tbody tr:hover td.abaixo-piso { background: #fbdcdc; }
+/* a coluna dos níveis fica presa na borda do cartão: a rolagem não tem o recuo lateral, senão as células aparecem atrás dela */
+.tabela-wrap.fixa { padding-inline: 0; scroll-behavior: smooth; overscroll-behavior-x: contain; }
 .tabela-salarial td.abaixo-piso { background: #fde8e8; color: var(--bad); }
 .tabela-salarial td.negativo { color: var(--bad); }
 
