@@ -1,8 +1,7 @@
-import { FAIXAS, PODERES, periodoTxt } from '../formato.js'
+import { FAIXAS, PODERES } from '../formato.js'
 
 export default function Filtros({ filtros, setFiltros, periodos, municipios, nomeEntidade, limparEntidade }) {
   const muda = (campo) => (e) => setFiltros((f) => ({ ...f, [campo]: e.target.value || null }))
-  const valorPeriodo = filtros.ano ? `${filtros.ano}-${filtros.mes}` : ''
   const anos = [...new Set(periodos.map((p) => p.ano))].sort((a, b) => b - a)
   const nomeMunicipio = municipios.find((m) => m.codIbge === filtros.codIbge)?.municipio
 
@@ -19,20 +18,12 @@ export default function Filtros({ filtros, setFiltros, periodos, municipios, nom
       <div className="filtros">
         <label className="campo" htmlFor="f-ano">Ano
           <select id="f-ano" value={filtros.ano || ''} onChange={(e) => {
-            // ao trocar o ano, fica o último período publicado dele (dezembro, se o ano já fechou)
+            // o filtro é só o ano: vale o último período publicado dele (dezembro, se o ano já fechou)
             const ano = Number(e.target.value)
             const ultimo = periodos.filter((p) => p.ano === ano).reduce((m, p) => (!m || p.mes > m.mes ? p : m), null)
             if (ultimo) setFiltros((f) => ({ ...f, ano, mes: ultimo.mes }))
           }}>
             {anos.map((a) => <option key={a} value={a}>{a}</option>)}
-          </select>
-        </label>
-        <label className="campo" htmlFor="f-periodo">Período (12 meses até)
-          <select id="f-periodo" value={valorPeriodo} onChange={(e) => {
-            const [ano, mes] = e.target.value.split('-').map(Number)
-            setFiltros((f) => ({ ...f, ano, mes }))
-          }}>
-            {periodos.filter((p) => p.ano === filtros.ano).map((p) => <option key={`${p.ano}-${p.mes}`} value={`${p.ano}-${p.mes}`}>{periodoTxt(p)}</option>)}
           </select>
         </label>
         <div className="campo">Poder
