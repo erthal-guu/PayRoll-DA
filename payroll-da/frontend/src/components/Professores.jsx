@@ -217,7 +217,7 @@ function TabelaSalarial({ titulo, classes, niveis, campo, nota }) {
   return (
     <div className="panel">
       <div className="panel-head"><h2>{titulo}</h2>{nota && <p className="hint">{nota}</p>}</div>
-      <div className="tabela-wrap">
+      <div className="tabela-wrap fixa">
         <table className="tabela-salarial">
           <thead><tr><th>Nível \ Classe</th>{classes.map((c) => <th key={c} className="n">{c}</th>)}</tr></thead>
           <tbody>
