@@ -11,7 +11,6 @@ const STATUS = {
 export default function Importacao({ aoImportar }) {
   const [lista, setLista] = useState([])
   const [arrastando, setArrastando] = useState(false)
-  const [url, setUrl] = useState('')
   const [erro, setErro] = useState(null)
   const [aberta, setAberta] = useState(null)
   const [errosLinha, setErrosLinha] = useState([])
@@ -37,12 +36,6 @@ export default function Importacao({ aoImportar }) {
     try { await api.uploadCsv(arquivo); atualizar() } catch (e) { setErro(e.message) }
   }
 
-  async function baixar(ev) {
-    ev.preventDefault()
-    setErro(null)
-    try { await api.importarUrl(url); atualizar() } catch (e) { setErro(e.message) }
-  }
-
   async function verErros(imp) {
     if (aberta === imp.id) { setAberta(null); return }
     setAberta(imp.id)
@@ -56,8 +49,7 @@ export default function Importacao({ aoImportar }) {
         <div className="sub">Importação manual: você baixa o CSV no SIMAM e envia para a base. Para o sistema buscar sozinho, use a tela <b>Analisar município</b>.</div>
       </div>
       {erro && <div className="erro">{erro}</div>}
-      <div className="grade">
-        <div className="panel">
+      <div className="panel">
           <div className="panel-head"><h2>Enviar arquivo CSV</h2></div>
           <div className={`drop ${arrastando ? 'ativo' : ''}`}
             onDragOver={(e) => { e.preventDefault(); setArrastando(true) }}
@@ -73,16 +65,6 @@ export default function Importacao({ aoImportar }) {
             <li>Envie o arquivo aqui. Também aceitamos o CSV consolidado (<code>municipio</code>, <code>cod_ibge</code>, <code>entidade</code>, <code>poder</code>, <code>ano</code>, <code>mes</code>, <code>despesa_total_pessoal</code>, <code>rcl_ajustada</code>, separador <code>;</code>).</li>
           </ol>
           <p className="hint" style={{ marginBottom: 0 }}>Reimportar o mesmo período atualiza os valores, sem duplicar.</p>
-        </div>
-        <div className="panel">
-          <div className="panel-head"><h2>Baixar dos dados abertos do TCE-PR</h2></div>
-          <form className="form-url" onSubmit={baixar}>
-            <label htmlFor="url-tce" className="hint" style={{ flexBasis: '100%' }}>Endereço do arquivo (.csv ou .zip)</label>
-            <input id="url-tce" type="url" placeholder="https://servicos.tce.pr.gov.br/..." value={url} onChange={(e) => setUrl(e.target.value)} />
-            <button className="btn" type="submit">Importar</button>
-          </form>
-          <p className="hint" style={{ marginBottom: 0 }}>O backend só aceita endereços https dos domínios do TCE-PR. Se o arquivo vier em .zip, o primeiro CSV é extraído automaticamente.</p>
-        </div>
       </div>
       <div className="panel">
         <div className="panel-head"><h2>Histórico</h2></div>
